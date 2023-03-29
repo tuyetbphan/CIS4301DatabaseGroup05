@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- css -->
+    <style>
+     body{background-color: aliceblue;}
+
+    .name{
+    width:300px;
+    height:40px;
+    border:3px solid #000;
+    margin-top: 50px;
+    text-align: center;
+    right: 50%;
+
+    
+    }
+   
+ 
+
+
+   .container {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+}
+
+.container img {
+  width: 100%;
+  height: auto;
+}
+
+.container .btn {
+  position: absolute;
+  top: 90%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  -ms-transform: translate(-50%, -50%);
+  background-color: #070707;
+  color: white;
+  font-size: 16px;
+  padding: 12px 24px;
+  border: none;
+  cursor: pointer;
+  border-radius: 5px;
+  text-align: center;
+}
+
+.container .btn:hover {
+  background-color: black;
+}
+
+    </style>
+  
+  </head>
+  <body>
+    <div
+      class="navigation-bar"
+      style="background-color: aliceblue; height: 50px; text-align: center"
+    >
+      <img
+        src="{{url_for('static', filename='logo.png')}}"
+        style="float: left; height: 50px;
+        width: 50px;"
+      />
+    </div>
+
+    <p class="name">CRIME AND CONTAGION</p>
+
+    <div class="container">
+    <center style="margin-top: 40px;">
+        <img style="align-items: center;"src="{{url_for('static', filename='cnc1.png')}}">
+      </center>
+    <button class="btn">CLICK HERE TO LEARN MORE</button>
+   
+    </div>
+
+  </body>
+</htm l>
