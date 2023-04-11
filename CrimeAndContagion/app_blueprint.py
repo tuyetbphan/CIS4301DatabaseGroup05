@@ -37,9 +37,6 @@ def queryfive():
     return render_template("queryfive.html")
 
 
-@app_blueprint.route('/customquery')
-def customquery():
-    return render_template("customquery.html")
 
 # this was a way to see if I can create dash-like graphs without Dash; only using flask and plotly
 @app_blueprint.route('/callback', methods=['POST', 'GET'])
