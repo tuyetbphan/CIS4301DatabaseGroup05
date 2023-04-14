@@ -40,7 +40,32 @@ def querytwo():
 
 @app_blueprint.route('/querythree')
 def querythree():
-    return render_template("querythree.html")
+    cursor = connection.cursor()
+    cursor.execute("""
+    SELECT Area_Name, EXTRACT(YEAR FROM Date_) AS year, EXTRACT(MONTH FROM Date_) AS month,
+    COUNT(*) AS total_crimes
+    FROM gongbingwong.crime
+    WHERE Date_ >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND Date_ <= TO_DATE('27-MAR-23', 'DD-MON-YY')
+    GROUP BY Area_Name, EXTRACT(YEAR FROM Date_), EXTRACT(MONTH FROM Date_)
+    ORDER BY Area_Name, year, month
+    """)
+    query_results = cursor.fetchall()
+   
+    df = pd.DataFrame(query_results, columns=['Area_Name', 'Year', 'Month', 'Total_Crimes'])
+    df['Year'] = pd.to_datetime(df['Year'], format='mixed')
+    df['Date'] = pd.to_datetime(df[['Year', 'Month']].assign(day=1))
+    df_pivot = df.pivot(index='Date', columns='Area_Name', values='Total_Crimes')
+    df_pivot.ffill(axis=0, inplace=True)
+    df_pivot.reset_index(inplace=True)
+    df_melted = pd.melt(df_pivot, id_vars='Date', value_vars=df['Area_Name'].unique(), value_name='Total_Crimes', var_name='Area_Name')
+    fig = px.line(df_melted, x='Date', y='Total_Crimes', color='Area_Name', title='Total Crimes by Month')
+
+    print(fig.data[0])
+    fig_data = fig.to_html(full_html=False)
+    graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    # fig.show()
+
+    return render_template("querythree.html", graphJSON=graphJSON)
 
 
 @app_blueprint.route('/queryfour')
@@ -79,26 +104,7 @@ def queryfour():
 
 @app_blueprint.route('/queryfive')
 def queryfive():
-    cursor = connection.cursor()
-    cursor.execute("""
-    SELECT Area_Name, EXTRACT(YEAR FROM Date_) AS year, EXTRACT(MONTH FROM Date_) AS month,
-    COUNT(*) AS total_crimes
-    FROM gongbingwong.crime
-    WHERE Date_ >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND Date_ <= TO_DATE('27-MAR-23', 'DD-MON-YY')
-    GROUP BY Area_Name, EXTRACT(YEAR FROM Date_), EXTRACT(MONTH FROM Date_)
-    ORDER BY Area_Name, year, month
-    """)
-    query_results = cursor.fetchall()
-   
-    df = pd.DataFrame(query_results, columns=['Area_Name', 'Year', 'Month', 'Total_Crimes'])
-    yearMonth = pd.to_datetime(df.Year*100+df.Month, format='%Y%m')
-    fig = px.line(df, x=yearMonth, y='Total_Crimes', color='Area_Name', line_group='Year', title='Total Crimes by Month')
-    print(fig.data[0])
-    fig_data = fig.to_html(full_html=False)
-    graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-    # fig.show()
-
-    return render_template("queryfive.html", graphJSON=graphJSON)
+    return render_template("queryfive.html")
 
 
 

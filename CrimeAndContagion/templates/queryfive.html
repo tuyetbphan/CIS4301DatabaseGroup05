@@ -1,24 +1,5 @@
 {% extends "base.html" %}
 {% block title%}Query Five{% endblock %}
 {% block content %}
-<div class="row p-4">
-    <div class="card m-auto" style="width: 90%">
-      <div class="card-body">
-        <div id="chart1">
-          <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-          <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-          <script>
-          </script>
-          <body style="font-family: arial, sans-serif">
-            <h1>CRIME TRENDS</h1>
-            <div id="chart" class="chart"></div>
-          </body>
-          <script>
-            graphs = {{graphJSON | safe}};
-            Plotly.newPlot('chart',graphs,{});        
-        </script>
-        </div>
-      </div>
-    </div>
-  </div>
+<h1>Query Five</h1>
 {% endblock %}
