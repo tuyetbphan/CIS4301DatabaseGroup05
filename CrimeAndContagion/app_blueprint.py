@@ -5,6 +5,22 @@ import json
 import plotly
 import plotly.express as px
 import plotly.graph_objects as go
+import oracledb
+import numpy as np
+
+connection = oracledb.connect(
+    user = "natalie.valcin",
+    password= "umGb8Uul71wMtOTXtLQPzyIG",
+    dsn = "oracle.cise.ufl.edu/orcl",
+    port = "1521"
+)
+
+print("Do we have a good connection: ", connection.is_healthy())
+print("Are we using a Thin connection: ", connection.thin)
+print("Database version: ", connection.version)
+
+
+
 
 app_blueprint = Blueprint('app_blueprint', __name__)
 
@@ -29,12 +45,60 @@ def querythree():
 
 @app_blueprint.route('/queryfour')
 def queryfour():
+    # cursor = connection.cursor()
+
+    # # do something like fetch, insert, etc.
+    # # cursor.execute("SELECT * FROM TPHAN1.COVID_19")
+    # # cursor.execute("SELECT * FROM TPHAN1.PATIENT")
+    # # cursor.execute("SELECT * FROM GONGBINGWONG.CRIME")
+    # # cursor.execute("SELECT * FROM GONGBINGWONG.VICTIM")
+    # # cursor.execute("SELECT CASE_ID FROM TPHAN1.COVID_19 WHERE CASE_DATE = '01-NOV-20' AND WHERE ")
+    # # cursor.execute("SELECT CASE_ID, COUNT(*) FROM TPHAN1.COVID_19 WHERE CURRENT_STATUS = 'PROBABLE CASE'")
+    # # cursor.execute("SELECT * FROM TPHAN1.PATIENT")
+
+    # sqlTxt = "SELECT DISTINCT CRIME_CODE_1 FROM GONGBINGWONG.CRIME"
+    # cursor.execute(sqlTxt)
+
+    # records = cursor.fetchall()
+    # records = list(records)
+
+    # # for record in records:
+    # #     print(record)
+
+    # fig = go.Figure(
+    #     data=[go.Bar(y=records)],
+    #     layout_title_text="A Figure Displayed with fig.show()"
+    # )
+    # fig.show()
+
+
+    # cursor.close()
+    # connection.close() 
     return render_template("queryfour.html")
 
 
 @app_blueprint.route('/queryfive')
 def queryfive():
-    return render_template("queryfive.html")
+    cursor = connection.cursor()
+    cursor.execute("""
+    SELECT Area_Name, EXTRACT(YEAR FROM Date_) AS year, EXTRACT(MONTH FROM Date_) AS month,
+    COUNT(*) AS total_crimes
+    FROM gongbingwong.crime
+    WHERE Date_ >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND Date_ <= TO_DATE('27-MAR-23', 'DD-MON-YY')
+    GROUP BY Area_Name, EXTRACT(YEAR FROM Date_), EXTRACT(MONTH FROM Date_)
+    ORDER BY Area_Name, year, month
+    """)
+    query_results = cursor.fetchall()
+   
+    df = pd.DataFrame(query_results, columns=['Area_Name', 'Year', 'Month', 'Total_Crimes'])
+    yearMonth = pd.to_datetime(df.Year*100+df.Month, format='%Y%m')
+    fig = px.line(df, x=yearMonth, y='Total_Crimes', color='Area_Name', line_group='Year', title='Total Crimes by Month')
+    print(fig.data[0])
+    fig_data = fig.to_html(full_html=False)
+    graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    # fig.show()
+
+    return render_template("queryfive.html", graphJSON=graphJSON)
 
 
 
@@ -45,7 +109,7 @@ def cb():
 
 @app_blueprint.route('/callback2', methods=['POST', 'GET'])
 def cback():
-    return dy()
+    return queryfive()
 
 def gm(country='United Kingdom'):
     df = pd.DataFrame(px.data.gapminder())
@@ -89,5 +153,8 @@ def dy():
 
     # fig.show()    
     return graphJSON
+
+
+
 
 
