@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 import oracledb
 import numpy as np
 
+
 connection = oracledb.connect(
     user = "natalie.valcin",
     password= "umGb8Uul71wMtOTXtLQPzyIG",
@@ -20,24 +21,63 @@ print("Are we using a Thin connection: ", connection.thin)
 print("Database version: ", connection.version)
 
 
-
-
 app_blueprint = Blueprint('app_blueprint', __name__)
 
 @app_blueprint.route('/')
 def homepage():
     return render_template("homepage.html")
 
+# Query 1: How have the crimes of theft, assault, and vandalism developed over time? 
 @app_blueprint.route('/queryone')
 def queryone():
-    return render_template("queryone.html", graphJSON=gm())
+    cursor = connection.cursor()
+    cursor.execute("""
+    SELECT 
+        CRIME_CODE_DESCRIPTION, 
+        TO_CHAR(Date_, 'MON-YY') as month,
+        COUNT(*) as num_crimes,
+        ROUND(100 * (COUNT(*) - LAG(COUNT(*)) 
+        OVER (PARTITION BY CRIME_CODE_DESCRIPTION 
+        ORDER BY MIN(Date_))) / NVL(LAG(COUNT(*)) 
+        OVER (PARTITION BY CRIME_CODE_DESCRIPTION 
+        ORDER BY MIN(Date_)), 1), 3) as percent_change
+    FROM 
+        GONGBINGWONG.Crime
+    WHERE 
+        CRIME_CODE_DESCRIPTION LIKE '%THEFT%' OR 
+        CRIME_CODE_DESCRIPTION LIKE '%ASSAULT%' OR
+        CRIME_CODE_DESCRIPTION LIKE '%VANDALISM%'
+    GROUP BY 
+        CRIME_CODE_DESCRIPTION, TO_CHAR(Date_, 'MON-YY')
+    ORDER BY 
+        CRIME_CODE_DESCRIPTION, MIN(Date_)
+    """)
+
+    results = cursor.fetchall()
+
+    df = pd.DataFrame(results, columns=['Crime', 'Month', 'Num_Crimes', 'Percent_Change'])
+    df['Date'] = pd.to_datetime(df['Month'], format='%b-%y')
+    df_pivot = df.pivot(index='Date', columns='Crime', values='Percent_Change')
+    df_pivot.ffill(axis=0, inplace=True)
+    df_pivot.reset_index(inplace=True)
+    df_melted = pd.melt(df_pivot, id_vars='Date', value_vars=df['Crime'].unique(), value_name='Percent_Change', var_name='Crime')
+    fig = px.line(df_melted, x='Date', y='Percent_Change', color='Crime', title='Crime Type Development Over Time')
+
+    print(fig.data[0])
+    fig_data = fig.to_html(full_html=False)
+    graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    # fig.show()
+
+    return render_template("queryone.html", graphJSON=graphJSON)
 
 
+# Query 2:  How has the number of victims between the ages of 18-49 affected by crimes of theft and COVID-19 developed in 2020?
 @app_blueprint.route('/querytwo')
 def querytwo():
     return render_template("querytwo.html", graphJSON=dy())
 
 
+# Query 3: How does a certain area differ from other areas in terms of all crimes committed from 2010 to 2022? 
 @app_blueprint.route('/querythree')
 def querythree():
     cursor = connection.cursor()
@@ -68,6 +108,7 @@ def querythree():
     return render_template("querythree.html", graphJSON=graphJSON)
 
 
+# Query 4: How do the COVID-19 cases relate to the number of indoor and outdoor crimes from 2020 to 2022?
 @app_blueprint.route('/queryfour')
 def queryfour():
     # cursor = connection.cursor()
@@ -102,6 +143,8 @@ def queryfour():
     return render_template("queryfour.html")
 
 
+# Query 5: What is the ratio of Hispanics to Non-Hispanics who were hospitalized due to COVID-19 and Hispanics to Non-Hispanics 
+# who experienced [insert crime] from 2020 to the present? Can trend patterns be detected? 
 @app_blueprint.route('/queryfive')
 def queryfive():
     return render_template("queryfive.html")
