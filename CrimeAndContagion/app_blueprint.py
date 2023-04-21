@@ -70,27 +70,27 @@ def queryone():
 
     return render_template("queryone.html", graphJSON=graphJSON)
 
-###############################################################################################################################
-# Query 2:  How has the number of victims between the ages of 18-49 affected by crimes of theft and COVID-19 developed in 2020?
+############################################################################################################################################################
+# Query 2:  How has the number of victims between the ages of 18-49 affected by crimes of theft and COVID-19 developed in 2020? And the following two years?
 @app_blueprint.route('/querytwo')
 def querytwo():
     # create a cursor object
     cursor = connection.cursor()
     cursor.execute("""
     SELECT 
-        GONGBINGWONG.Crime.Date_,
+        TRUNC(Date_, 'MM') AS Month_,
         COUNT(*) AS Value,
         'Theft Victims' AS Category
     FROM 
         GONGBINGWONG.Crime
         JOIN GONGBINGWONG.Victim ON GONGBINGWONG.Crime.Crime_ID = GONGBINGWONG.Victim.Victim_Of
     WHERE 
-        GONGBINGWONG.Victim.Age BETWEEN 18 AND 49 AND 
-        GONGBINGWONG.Crime.Crime_Code_Description LIKE '%THEFT%' AND 
-        GONGBINGWONG.Crime.Date_ >= TO_DATE('2019-01-01', 'YYYY-MM-DD') AND 
-        GONGBINGWONG.Crime.Date_ <= TO_DATE('2022-12-31', 'YYYY-MM-DD') 
+        Age BETWEEN 18 AND 49 AND 
+        Crime_Code_Description LIKE '%THEFT%' AND 
+        Date_ >= TO_DATE('2020-01-01', 'YYYY-MM-DD') AND 
+        Date_ <= TO_DATE('2022-12-31', 'YYYY-MM-DD') 
     GROUP BY 
-        GONGBINGWONG.Crime.Date_
+        TRUNC(Date_, 'MM')
     
     UNION ALL
 
@@ -99,7 +99,7 @@ def querytwo():
         COUNT(*) AS Value,
         'COVID-19 Patients' AS Category
     FROM 
-        COVID_19 JOIN Patient ON Case_ID = Infected_Case
+        TPHAN1.COVID_19 JOIN TPHAN1.Patient ON Case_ID = Infected_Case
     WHERE 
         Age_Group = '18 to 49 years' 
         AND Case_Date >= TO_DATE('2020-01-01', 'YYYY-MM-DD')  
@@ -107,43 +107,62 @@ def querytwo():
     GROUP BY 
         Case_Date""")
     
-    # Fetch all the rows and store them in a list
     result = cursor.fetchall()
 
-    # Create a Pandas DataFrame from the rows
     df = pd.DataFrame(result, columns=['Date', 'Value', 'Category'])
-
-    # Pivot the DataFrame to create the data for the chart
+    print(df)
     df_pivot = df.pivot(index='Date', columns='Category', values='Value')
-
-    # Fill in missing values using forward-fill
     df_pivot = df_pivot.ffill(axis=0, inplace=True)
 
-    # Reset the index so that the Date column becomes a regular column
-    df_pivot.reset_index(inplace=True)
+    # define graphJSON variable with None value
+    # graphJSON = None
 
-    # Create the chart using Plotly Express
+    # if df_pivot is not None:
+    #     df_pivot.reset_index(inplace=True)
+    #     fig = px.line(df_pivot, x='Date', y=['Theft Victims', 'COVID-19 Patients'])
+    #     print(fig.data[0])
+    #     fig_data = fig.to_html(full_html=False)
+    #     graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+    # df_pivot.reset_index(inplace=True)
     fig = px.line(df_pivot, x='Date', y=['Theft Victims', 'COVID-19 Patients'])
-
-    # Get the Plotly JSON data and HTML for embedding the chart
-    graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    print(fig.data[0])
     fig_data = fig.to_html(full_html=False)
+    graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
-    return render_template("querytwo.html", graphJSON=graphJSON)
+    return render_template("querytwo.html")
 
-    # # execute the first query and save the results
-    # query1 = """SELECT GONGBINGWONG.Crime.Date_, COUNT(*) AS num_victims 
-    #         FROM GONGBINGWONG.Crime 
-    #         JOIN GONGBINGWONG.Victim 
-    #         ON GONGBINGWONG.Crime.Crime_ID = GONGBINGWONG.Victim.Victim_Of 
-    #         WHERE GONGBINGWONG.Victim.Age BETWEEN 18 AND 49 
-    #         AND GONGBINGWONG.Crime.Crime_Code_Description LIKE '%THEFT%' 
-    #         AND GONGBINGWONG.Crime.Date_ >= TO_DATE('2019-01-01', 'YYYY-MM-DD') 
-    #         AND GONGBINGWONG.Crime.Date_ <= TO_DATE('2022-12-31', 'YYYY-MM-DD') 
-    #         GROUP BY GONGBINGWONG.Crime.Date_ 
-    #         ORDER BY GONGBINGWONG.Crime.Date_ ASC"""
-    # cursor.execute(query1)
-    # result1 = cursor.fetchall()
+
+    
+    # result = cursor.fetchall()
+
+    # df = pd.DataFrame(result, columns=['Date', 'Value', 'Category'])
+    # df_pivot = df.pivot(index='Date', columns='Category', values='Value')
+    # df_pivot = df_pivot.ffill(axis=0, inplace=True)
+    # if df_pivot is not None:
+    #     df_pivot.reset_index(inplace=True)
+    #     fig = px.line(df_pivot, x='Date', y=['Theft Victims', 'COVID-19 Patients'])
+    #     print(fig.data[0])
+    #     fig_data = fig.to_html(full_html=False)
+    #     graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+    # return render_template("querytwo.html", graphJSON=graphJSON)
+    # Reset the index so that the Date column becomes a regular column
+    # df_pivot.reset_index(inplace=True)
+    # df_pivot = df_pivot.reset_index()
+
+    # if df_pivot is not None:
+    #     df_pivot.reset_index(inplace=True)
+    # fig = px.line(df_pivot, x='Date', y=['Theft Victims', 'COVID-19 Patients'])
+    # print(fig.data[0])
+    # fig_data = fig.to_html(full_html=False)
+    # graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+    # return render_template("querytwo.html", graphJSON=graphJSON)
+
+
+    
+
 
     # # execute the second query and save the results
     # query2 = """SELECT Case_Date, COUNT(*) AS num_patients 
