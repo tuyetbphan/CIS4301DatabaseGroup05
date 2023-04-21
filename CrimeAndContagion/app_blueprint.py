@@ -78,7 +78,7 @@ def querytwo():
     # create a cursor object
     cursor = connection.cursor()
     cursor.execute("""
-    SELECT 
+        SELECT 
         TRUNC(Date_, 'MM') AS Month_,
         COUNT(*) AS Value,
         'Theft Victims' AS Category
@@ -94,6 +94,7 @@ def querytwo():
         TRUNC(Date_, 'MM')
     
     UNION ALL
+
     SELECT 
         Case_Date,
         COUNT(*) AS Value,
@@ -103,16 +104,18 @@ def querytwo():
     WHERE 
         Age_Group = '18 to 49 years' 
         AND Case_Date >= TO_DATE('2020-01-01', 'YYYY-MM-DD')  
-        AND Case_Date <= TO_DATE('2022-12-31', 'YYYY-MM-DD') 
+        AND Case_Date <= TO_DATE('2022-12-31', 'YYYY-MM-DD')
+        AND CURRENT_STATUS = 'Laboratory-confirmed case'
     GROUP BY 
-        Case_Date""")
+        Case_Date
+    """)
     
     result = cursor.fetchall()
 
     df = pd.DataFrame(result, columns=['Date', 'Value', 'Category'])
     print(df)
     df_pivot = df.pivot(index='Date', columns='Category', values='Value')
-    df_pivot = df_pivot.ffill(axis=0, inplace=True)
+    df_pivot = df_pivot.ffill(axis=0)
 
     # define graphJSON variable with None value
     # graphJSON = None
@@ -124,13 +127,15 @@ def querytwo():
     #     fig_data = fig.to_html(full_html=False)
     #     graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
-    # df_pivot.reset_index(inplace=True)
-    fig = px.line(df_pivot, x='Date', y=['Theft Victims', 'COVID-19 Patients'])
+    df_pivot.reset_index(inplace=True)
+    print(df_pivot)
+    df_melted = pd.melt(df_pivot, id_vars='Date', value_vars=df['Category'].unique(), value_name='Number of Affected People', var_name='Category')
+    fig = px.line(df_melted, x='Date', y='Number of Affected People', color='Category')
     print(fig.data[0])
     fig_data = fig.to_html(full_html=False)
     graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
-    return render_template("querytwo.html")
+    return render_template("querytwo.html", graphJSON=graphJSON)
 
 
     
@@ -337,6 +342,7 @@ def queryfive():
     query_results2 = cursor.fetchall()
 
     df = pd.DataFrame(query_results, columns=['Year', 'Month', 'Hospitalized Hispanic', 'Hospitalized Non-Hispanic'])
+
     df['Date'] = pd.to_datetime(df['Year'])
     df['Date'] = pd.to_datetime(df[['Year', 'Month']].assign(day=1))
     # df_pivot = df.pivot_table(index='Date', values=['HospitalizedHispanic', 'HospitalizedNonHispanic'])
