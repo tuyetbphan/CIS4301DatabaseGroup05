@@ -318,14 +318,25 @@ def queryfive():
     query_results = cursor.fetchall()
 
     cursor.execute("""
-    SELECT x.year, x.month, x.crime_code_description, x."Hispanic Victims", y."Non-Hispanic Victims"
+    SELECT x.year, x.month, x."Hispanic Victims", y."Non-Hispanic Victims"
     FROM
-    (
+    (   
         SELECT  crime_code_description, EXTRACT(YEAR FROM date_) AS year, EXTRACT(MONTH FROM date_) AS month, COUNT(*) AS "Hispanic Victims"
         FROM gongbingwong.victim
         JOIN 
         gongbingwong.crime ON gongbingwong.victim.victim_of = gongbingwong.crime.crime_id
-        WHERE descent = 'H'
+        WHERE descent = 'H'AND
+        crime_code_description = 'RESISTING ARREST' OR
+        crime_code_description = 'ARSON' OR
+        crime_code_description = 'FALSE POLICE REPORT' OR
+        crime_code_description = 'CRIMINAL THREATS - NO WEAPON DISPLAYED' OR
+        crime_code_description = 'TRESPASSING' OR
+        crime_code_description = 'DOCUMENT FORGERY / STOLEN FELONY' OR
+        crime_code_description = 'FAILURE TO DISPERSE' OR
+        crime_code_description = 'BATTERY POLICE (SIMPLE)' OR
+        crime_code_description = 'ASSAULT WITH DEADLY WEAPON ON POLICE OFFICER' OR
+        crime_code_description = 'INCITING A RIOT' OR
+        crime_code_description = 'DISTURBING THE PEACE' 
         GROUP BY crime_code_description, EXTRACT(YEAR FROM date_), EXTRACT(MONTH FROM date_)
     ) x
     INNER JOIN
@@ -334,10 +345,21 @@ def queryfive():
         FROM gongbingwong.victim
         JOIN 
         gongbingwong.crime ON gongbingwong.victim.victim_of = gongbingwong.crime.crime_id
-        WHERE NOT descent = 'H'
+        WHERE NOT descent = 'H' AND
+        crime_code_description = 'RESISTING ARREST' OR
+        crime_code_description = 'ARSON' OR
+        crime_code_description = 'FALSE POLICE REPORT' OR
+        crime_code_description = 'CRIMINAL THREATS - NO WEAPON DISPLAYED' OR
+        crime_code_description = 'TRESPASSING' OR
+        crime_code_description = 'DOCUMENT FORGERY / STOLEN FELONY' OR
+        crime_code_description = 'FAILURE TO DISPERSE' OR
+        crime_code_description = 'BATTERY POLICE (SIMPLE)' OR
+        crime_code_description = 'ASSAULT WITH DEADLY WEAPON ON POLICE OFFICER' OR
+        crime_code_description = 'INCITING A RIOT' OR
+        crime_code_description = 'DISTURBING THE PEACE' 
         GROUP BY crime_code_description, EXTRACT(YEAR FROM date_), EXTRACT(MONTH FROM date_)
     ) y ON x.year = y.year and x.month = y.month AND x.crime_code_description=y.crime_code_description
-    ORDER BY x.year, x.month
+    ORDER BY x.year, x.month;
     """)
     query_results2 = cursor.fetchall()
 
@@ -361,72 +383,6 @@ def queryfive():
     print(fig.data[0])
     fig_data = fig.to_html(full_html=False)
     graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-    # cursor.execute("""select x.year, x.month, x.HospitalizedHispanic/y.HospitalizedNonHispanic 
-    # from 
-    # (
-    #     select EXTRACT(YEAR FROM case_Date) AS year, EXTRACT(MONTH FROM case_Date) AS month, count(*) as HospitalizedHispanic 
-    #     from tphan1.covid_19 join tphan1.patient on tphan1.covid_19.case_id = tphan1.patient.infected_case 
-    #     where case_Date >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND case_Date <= TO_DATE('27-MAR-23', 'DD-MON-YY') and tphan1.covid_19.hospitalized = 'Yes' and tphan1.patient.ethnicity = 'Hispanic/Latino'
-    #     GROUP BY EXTRACT(YEAR FROM case_Date), EXTRACT(MONTH FROM case_Date)
-    # ) x 
-    # join 
-    # (
-    #     select EXTRACT(YEAR FROM case_Date) AS year, EXTRACT(MONTH FROM case_Date) AS month, count(*) as HospitalizedNonHispanic 
-    #     from tphan1.covid_19 join tphan1.patient on tphan1.covid_19.case_id = tphan1.patient.infected_case 
-    #     where case_Date >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND case_Date <= TO_DATE('27-MAR-23', 'DD-MON-YY') and tphan1.covid_19.hospitalized = 'Yes' and tphan1.patient.ethnicity = 'Non-Hispanic/Latino'
-    #     GROUP BY EXTRACT(YEAR FROM case_Date), EXTRACT(MONTH FROM case_Date)
-    # )y on x.year = y.year and x.month = y.month
-    # order by x.year, x.month
-    # """)
-
-    # ("""select EXTRACT(YEAR FROM case_Date) AS year, EXTRACT(MONTH FROM case_Date) AS month, count(*) as HospitalizedHispanic 
-    # from tphan1.covid_19 join
-    # tphan1.patient on tphan1.covid_19.case_id = tphan1.patient.infected_case where case_Date >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND case_Date <= TO_DATE('27-MAR-23', 'DD-MON-YY') and tphan1.covid_19.hospitalized = 'Yes' and tphan1.patient.ethnicity = 'Hispanic/Latino'
-    # GROUP BY EXTRACT(YEAR FROM case_Date), EXTRACT(MONTH FROM case_Date)
-    # union
-    # select EXTRACT(YEAR FROM case_Date) AS year, EXTRACT(MONTH FROM case_Date) AS month, count(*) as HospitalizedNonHispanic 
-    # from tphan1.covid_19 join
-    # tphan1.patient on tphan1.covid_19.case_id = tphan1.patient.infected_case where case_Date >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND case_Date <= TO_DATE('27-MAR-23', 'DD-MON-YY') and tphan1.covid_19.hospitalized = 'Yes' and tphan1.patient.ethnicity = 'Non-Hispanic/Latino'
-    # GROUP BY EXTRACT(YEAR FROM case_Date), EXTRACT(MONTH FROM case_Date)
-    # order by year, month""")
-
-    # ("""select x.year, x.month, x.HospitalizedHispanic, y.HospitalizedNonHispanic 
-    # from 
-    # (
-    #     select EXTRACT(YEAR FROM case_Date) AS year, EXTRACT(MONTH FROM case_Date) AS month, count(*) as HospitalizedHispanic 
-    #     from tphan1.covid_19 join tphan1.patient on tphan1.covid_19.case_id = tphan1.patient.infected_case 
-    #     where case_Date >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND case_Date <= TO_DATE('27-MAR-23', 'DD-MON-YY') and tphan1.covid_19.hospitalized = 'Yes' and tphan1.patient.ethnicity = 'Hispanic/Latino'
-    #     GROUP BY EXTRACT(YEAR FROM case_Date), EXTRACT(MONTH FROM case_Date)
-    # ) x 
-    # inner join 
-    # (
-    #     select EXTRACT(YEAR FROM case_Date) AS year, EXTRACT(MONTH FROM case_Date) AS month, count(*) as HospitalizedNonHispanic 
-    #     from tphan1.covid_19 join tphan1.patient on tphan1.covid_19.case_id = tphan1.patient.infected_case 
-    #     where case_Date >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND case_Date <= TO_DATE('27-MAR-23', 'DD-MON-YY') and tphan1.covid_19.hospitalized = 'Yes' and tphan1.patient.ethnicity = 'Non-Hispanic/Latino'
-    #     GROUP BY EXTRACT(YEAR FROM case_Date), EXTRACT(MONTH FROM case_Date)
-    # )y on x.year = y.year and x.month = y.month
-    # order by x.year, x.month""")
-
-
-    # SELECT  crime_code_description, EXTRACT(YEAR FROM date_) AS year, EXTRACT(MONTH FROM date_) AS month, COUNT(*) AS "Hispanic Victims"
-    # FROM gongbingwong.victim
-    # JOIN 
-    # gongbingwong.crime ON gongbingwong.victim.victim_of = gongbingwong.crime.crime_id
-    # WHERE descent = 'H'
-    # GROUP BY crime_code_description, EXTRACT(YEAR FROM date_), EXTRACT(MONTH FROM date_);
-
-
-
-    # SELECT  crime_code_description, EXTRACT(YEAR FROM date_) AS year, EXTRACT(MONTH FROM date_) AS month, COUNT(*) AS "Non-Hispanic Victims"
-    # FROM gongbingwong.victim
-    # JOIN 
-    # gongbingwong.crime ON gongbingwong.victim.victim_of = gongbingwong.crime.crime_id
-    # WHERE NOT descent = 'H'
-    # GROUP BY crime_code_description, EXTRACT(YEAR FROM date_), EXTRACT(MONTH FROM date_);
-
-
-
-
     # SELECT x.year, x.month, x.crime_code_description, x."Hispanic Victims", y."Non-Hispanic Victims"
     # FROM
     # (
@@ -446,7 +402,9 @@ def queryfive():
     #     WHERE NOT descent = 'H'
     #     GROUP BY crime_code_description, EXTRACT(YEAR FROM date_), EXTRACT(MONTH FROM date_)
     # ) y ON x.year = y.year and x.month = y.month AND x.crime_code_description=y.crime_code_description
-    # ORDER BY x.year, x.month;
+    # ORDER BY x.year, x.month
+
+
 
     return render_template("queryfive.html", graphJSON=graphJSON)
 
