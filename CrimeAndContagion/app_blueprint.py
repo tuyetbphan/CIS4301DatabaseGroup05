@@ -71,8 +71,8 @@ def queryone():
 
     return render_template("queryone.html", graphJSON=graphJSON)
 
-
-# Query 2:  How has the number of victims between the ages of 18-49 affected by crimes of theft and COVID-19 developed in 2020?
+############################################################################################################################################################
+# Query 2:  How has the number of victims between the ages of 18-49 affected by crimes of theft and COVID-19 developed in 2020? And the following two years?
 @app_blueprint.route('/querytwo')
 def querytwo():
     # create a cursor object
@@ -314,6 +314,9 @@ def queryfour():
     return render_template("queryfour.html")
 
 
+##################################################################################################################
+# Query 5: What is the ratio of Hispanics to Non-Hispanics who were hospitalized due to COVID-19 and Hispanics to 
+# Non-Hispanics who experienced [insert crime] from 2020 to the present? Can trend patterns be detected? 
 ##################################################################################################################
 # Query 5: What is the ratio of Hispanics to Non-Hispanics who were hospitalized due to COVID-19 and Hispanics to 
 # Non-Hispanics who experienced [insert crime] from 2020 to the present? Can trend patterns be detected? 
