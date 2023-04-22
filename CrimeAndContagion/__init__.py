@@ -6,9 +6,9 @@ def create_app():
     app.config['SECRET_KEY'] = 'groupfive'
 
     from .app_blueprint import app_blueprint
-    from .dash_application import create_dash_application
+    # from .dash_application import create_dash_application
 
     app.register_blueprint(app_blueprint)
     
-    create_dash_application(app)
+    # create_dash_application(app)
     return app
