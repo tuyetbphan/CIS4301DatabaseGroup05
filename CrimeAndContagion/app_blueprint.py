@@ -286,6 +286,7 @@ def queryfour():
     # cursor.close()
     # connection.close() 
 
+    #Not completely finished
     cursor = connection.cursor()
     cursor.execute("""
 SELECT
