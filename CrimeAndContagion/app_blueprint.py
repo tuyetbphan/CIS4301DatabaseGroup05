@@ -285,7 +285,74 @@ def queryfour():
 
     # cursor.close()
     # connection.close() 
-    return render_template("queryfour.html")
+
+    cursor = connection.cursor()
+    cursor.execute("""
+SELECT
+    r.year,
+    r.month,
+    r.residential_crime_count,
+    r.non_residential_crime_count,
+    COALESCE(d.total_cases, 0) as total_covid_19_cases
+FROM
+(SELECT 
+    EXTRACT(YEAR FROM Date_) AS year, 
+    EXTRACT(MONTH FROM Date_) AS month, 
+    SUM(CASE WHEN c.PREMISE_CODE_DESCRIPTION IN ('DRIVEWAY', 'TOOL SHED*', 'TRANSITIONAL HOUSING/HALFWAY HOUSE', 'TRANSIENT ENCAMPMENT', 'PROJECT/TENEMENT/PUBLIC HOUSING', 
+    'PATIO*', 'BALCONY*', 'OTHER RESIDENCE', 'YARD (RESIDENTIAL/BUSINESS)', 'TV/RADIO/APPLIANCE', 'WEBSITE', 'MISSIONS/SHELTERS', 'NURSING/CONVALESCENT/RETIREMENT HOME', 
+    'STORAGE SHED', 'GROUP HOME', 'FOSTER HOME BOYS OR GIRLS*', 'TRASH CAN/TRASH DUMPSTER', 'SINGLE FAMILY DWELLING', 'GARAGE/CARPORT', 'PARKING UNDERGROUND/BUILDING', 
+    'CONDOMINIUM/TOWNHOUSE', 'SINGLE RESIDENCE OCCUPANCY (SRO''S) LOCATIONS', 'ABANDONED BUILDING ABANDONED HOUSE', 'HOSPITAL', 'STAIRWELL*', 'PORCH, RESIDENTIAL', 'STREET', 
+    'FRAT HOUSE/SORORITY/DORMITORY', 'APARTMENT/CONDO COMMON LAUNDRY ROOM', 'MULTI-UNIT DWELLING (APARTMENT, DUPLEX, ETC)', 'MOBILE HOME/TRAILERS/CONSTRUCTION TRAILERS/RV''S/MOTORHOME') THEN 1 ELSE 0 END) AS residential_crime_count,
+    SUM(CASE WHEN c.PREMISE_CODE_DESCRIPTION NOT IN ('DRIVEWAY', 'TOOL SHED*', 'TRANSITIONAL HOUSING/HALFWAY HOUSE', 'TRANSIENT ENCAMPMENT', 'PROJECT/TENEMENT/PUBLIC HOUSING', 
+    'PATIO*', 'BALCONY*', 'OTHER RESIDENCE', 'YARD (RESIDENTIAL/BUSINESS)', 'TV/RADIO/APPLIANCE', 'WEBSITE', 'MISSIONS/SHELTERS', 'NURSING/CONVALESCENT/RETIREMENT HOME', 
+    'STORAGE SHED', 'GROUP HOME', 'FOSTER HOME BOYS OR GIRLS*', 'TRASH CAN/TRASH DUMPSTER', 'SINGLE FAMILY DWELLING', 'GARAGE/CARPORT', 'PARKING UNDERGROUND/BUILDING', 
+    'CONDOMINIUM/TOWNHOUSE', 'SINGLE RESIDENCE OCCUPANCY (SRO''S) LOCATIONS', 'ABANDONED BUILDING ABANDONED HOUSE', 'HOSPITAL', 'STAIRWELL*', 'PORCH, RESIDENTIAL', 'STREET', 
+    'FRAT HOUSE/SORORITY/DORMITORY', 'APARTMENT/CONDO COMMON LAUNDRY ROOM', 'MULTI-UNIT DWELLING (APARTMENT, DUPLEX, ETC)', 'MOBILE HOME/TRAILERS/CONSTRUCTION TRAILERS/RV''S/MOTORHOME') THEN 1 ELSE 0 END) AS non_residential_crime_count
+FROM 
+    GONGBINGWONG.Crime c 
+WHERE 
+     c.Date_ >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND c.Date_ <= TO_DATE('27-MAR-23', 'DD-MON-YY')
+GROUP BY 
+    EXTRACT(YEAR FROM c.Date_), 
+    EXTRACT(MONTH FROM c.Date_)) r
+LEFT JOIN
+(SELECT 
+    EXTRACT(YEAR FROM b.case_date) AS year, 
+    EXTRACT(MONTH FROM b.case_date) AS month,
+    COUNT(*) AS total_cases
+FROM 
+    TPHAN1.COVID_19 b
+WHERE 
+    b.case_date >= TO_DATE('01-JAN-20', 'DD-MON-YY') AND b.case_date <= TO_DATE('01-FEB-23', 'DD-MON-YY')
+GROUP BY 
+    EXTRACT(YEAR FROM b.case_date), 
+    EXTRACT(MONTH FROM b.case_date)) d
+on r.year = d.year and r.month = d.month
+ORDER BY
+    year, month
+    """)
+
+    # execute the SQL query and fetch the results into a list of tuples
+    query_results = cursor.fetchall()
+
+    # create a DataFrame from the query results
+    df = pd.DataFrame(query_results, columns=['Year', 'Month', 'Residential_Crime_Count', 'Non_Residential_Crime_Count', 'Total_COVID_19_Cases'])
+
+    # convert the Year and Month columns to datetime objects
+    df['Date'] = pd.to_datetime(df['Year'].astype(str) + '-' + df['Month'].astype(str), format='%Y-%m')
+    df = df.drop(['Year', 'Month'], axis=1)
+
+    # melt the DataFrame to create a column for each type of crime count
+    df_melted = pd.melt(df, id_vars=['Date', 'Total_COVID_19_Cases'], var_name='Crime_Type', value_name='Crime_Count')
+
+    # create the line chart
+    fig = px.line(df_melted, x='Date', y='Crime_Count', color='Crime_Type', title='Total Crimes by Month')
+
+    print(fig.data[0])
+    fig_data = fig.to_html(full_html=False)
+    graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+    return render_template("queryfour.html", graphJSON=graphJSON)
 
 
 ##################################################################################################################
