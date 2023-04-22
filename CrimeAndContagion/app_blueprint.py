@@ -275,7 +275,7 @@ def queryfour():
     # cursor.close()
     # connection.close() 
 
-    #Not completely finished
+    #Not completely finished.
     cursor = connection.cursor()
     cursor.execute("""
 SELECT
@@ -322,27 +322,23 @@ ORDER BY
     year, month
     """)
 
-    # execute the SQL query and fetch the results into a list of tuples
     query_results = cursor.fetchall()
-
-    # create a DataFrame from the query results
     df = pd.DataFrame(query_results, columns=['Year', 'Month', 'Residential_Crime_Count', 'Non_Residential_Crime_Count', 'Total_COVID_19_Cases'])
-
-    # convert the Year and Month columns to datetime objects
     df['Date'] = pd.to_datetime(df['Year'].astype(str) + '-' + df['Month'].astype(str), format='%Y-%m')
     df = df.drop(['Year', 'Month'], axis=1)
-
-    # melt the DataFrame to create a column for each type of crime count
     df_melted = pd.melt(df, id_vars=['Date', 'Total_COVID_19_Cases'], var_name='Crime_Type', value_name='Crime_Count')
-
-    # create the line chart
-    fig = px.line(df_melted, x='Date', y='Crime_Count', color='Crime_Type', title='Total Crimes by Month')
-
+    fig = px.line(df_melted, x='Date', y='Crime_Count', color='Crime_Type', title='Total Crimes and COVID-19 Cases by Month')
+    fig.add_trace(go.Scatter(x=df['Date'], y=df['Total_COVID_19_Cases'], name='Total COVID-19 Cases', yaxis='y2'))
+    fig.update_layout(yaxis=dict(title='Crime Count', side='left'), yaxis2=dict(title='Total COVID-19 Cases', overlaying='y', side='right'),
+                    legend=dict(x=1.125, y=1))
     print(fig.data[0])
     fig_data = fig.to_html(full_html=False)
     graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-
     return render_template("queryfour.html", graphJSON=graphJSON)
+
+
+
+
 
 
 
