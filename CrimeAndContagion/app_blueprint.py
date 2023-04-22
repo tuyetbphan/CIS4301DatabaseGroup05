@@ -116,17 +116,6 @@ def querytwo():
     print(df)
     df_pivot = df.pivot(index='Date', columns='Category', values='Value')
     df_pivot = df_pivot.ffill(axis=0)
-
-    # define graphJSON variable with None value
-    # graphJSON = None
-
-    # if df_pivot is not None:
-    #     df_pivot.reset_index(inplace=True)
-    #     fig = px.line(df_pivot, x='Date', y=['Theft Victims', 'COVID-19 Patients'])
-    #     print(fig.data[0])
-    #     fig_data = fig.to_html(full_html=False)
-    #     graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-
     df_pivot.reset_index(inplace=True)
     print(df_pivot)
     df_melted = pd.melt(df_pivot, id_vars='Date', value_vars=df['Category'].unique(), value_name='Number of Affected People', var_name='Category')
@@ -356,82 +345,137 @@ ORDER BY
     return render_template("queryfour.html", graphJSON=graphJSON)
 
 
-##################################################################################################################
-# Query 5: What is the ratio of Hispanics to Non-Hispanics who were hospitalized due to COVID-19 and Hispanics to 
-# Non-Hispanics who experienced [insert crime] from 2020 to the present? Can trend patterns be detected? 
+
 ##################################################################################################################
 # Query 5: What is the ratio of Hispanics to Non-Hispanics who were hospitalized due to COVID-19 and Hispanics to 
 # Non-Hispanics who experienced [insert crime] from 2020 to the present? Can trend patterns be detected? 
 @app_blueprint.route('/queryfive')
 def queryfive():
     cursor = connection.cursor()
+    # cursor.execute("""
+    # select x.year, x.month, x."Hospitalized Hispanic", y."Hospitalized Non-Hispanic" 
+    # from 
+    # (
+    #     select EXTRACT(YEAR FROM case_Date) AS year, EXTRACT(MONTH FROM case_Date) AS month, count(*) as "Hospitalized Hispanic"     
+    #     from tphan1.covid_19 join tphan1.patient on tphan1.covid_19.case_id = tphan1.patient.infected_case 
+    #     where case_Date >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND case_Date <= TO_DATE('27-MAR-23', 'DD-MON-YY') and tphan1.covid_19.hospitalized = 'Yes' and tphan1.patient.ethnicity = 'Hispanic/Latino'
+    #     GROUP BY EXTRACT(YEAR FROM case_Date), EXTRACT(MONTH FROM case_Date)
+    # ) x 
+    # inner join 
+    # (
+    #     select EXTRACT(YEAR FROM case_Date) AS year, EXTRACT(MONTH FROM case_Date) AS month, count(*) as "Hospitalized Non-Hispanic" 
+    #     from tphan1.covid_19 join tphan1.patient on tphan1.covid_19.case_id = tphan1.patient.infected_case 
+    #     where case_Date >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND case_Date <= TO_DATE('27-MAR-23', 'DD-MON-YY') and tphan1.covid_19.hospitalized = 'Yes' and tphan1.patient.ethnicity = 'Non-Hispanic/Latino'
+    #     GROUP BY EXTRACT(YEAR FROM case_Date), EXTRACT(MONTH FROM case_Date)
+    # ) y on x.year = y.year and x.month = y.month
+    # order by x.year, x.month
+    # """)
     cursor.execute("""
-    select x.year, x.month, x."Hospitalized Hispanic", y."Hospitalized Non-Hispanic" 
-    from 
-    (
-        select EXTRACT(YEAR FROM case_Date) AS year, EXTRACT(MONTH FROM case_Date) AS month, count(*) as "Hospitalized Hispanic"     
-        from tphan1.covid_19 join tphan1.patient on tphan1.covid_19.case_id = tphan1.patient.infected_case 
-        where case_Date >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND case_Date <= TO_DATE('27-MAR-23', 'DD-MON-YY') and tphan1.covid_19.hospitalized = 'Yes' and tphan1.patient.ethnicity = 'Hispanic/Latino'
-        GROUP BY EXTRACT(YEAR FROM case_Date), EXTRACT(MONTH FROM case_Date)
-    ) x 
-    inner join 
-    (
-        select EXTRACT(YEAR FROM case_Date) AS year, EXTRACT(MONTH FROM case_Date) AS month, count(*) as "Hospitalized Non-Hispanic" 
-        from tphan1.covid_19 join tphan1.patient on tphan1.covid_19.case_id = tphan1.patient.infected_case 
-        where case_Date >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND case_Date <= TO_DATE('27-MAR-23', 'DD-MON-YY') and tphan1.covid_19.hospitalized = 'Yes' and tphan1.patient.ethnicity = 'Non-Hispanic/Latino'
-        GROUP BY EXTRACT(YEAR FROM case_Date), EXTRACT(MONTH FROM case_Date)
-    ) y on x.year = y.year and x.month = y.month
-    order by x.year, x.month
+        WITH covid_data AS (
+    SELECT
+        EXTRACT(YEAR FROM case_Date) AS year,
+        EXTRACT(MONTH FROM case_Date) AS month,
+        COUNT(CASE WHEN tphan1.patient.ethnicity = 'Hispanic/Latino' THEN 1 END) AS "Hospitalized Hispanic",
+        COUNT(CASE WHEN tphan1.patient.ethnicity = 'Non-Hispanic/Latino' THEN 1 END) AS "Hospitalized Non-Hispanic"
+    FROM 
+        tphan1.covid_19 JOIN tphan1.patient ON 
+        tphan1.covid_19.case_id = tphan1.patient.infected_case
+    WHERE 
+        case_Date >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND 
+        case_Date <= TO_DATE('27-MAR-23', 'DD-MON-YY') AND 
+        tphan1.covid_19.hospitalized = 'Yes'
+    GROUP BY 
+        EXTRACT(YEAR FROM case_Date), 
+        EXTRACT(MONTH FROM case_Date)
+    ),
+    crime_data AS (
+    SELECT
+        EXTRACT(YEAR FROM date_) AS year,
+        EXTRACT(MONTH FROM date_) AS month,
+        COUNT(CASE WHEN descent = 'H' THEN 1 END) AS "Hispanic Victims",
+        COUNT(CASE WHEN NOT descent = 'H' THEN 1 END) AS "Non-Hispanic Victims"
+    FROM 
+        gongbingwong.victim JOIN gongbingwong.crime ON 
+        gongbingwong.victim.victim_of = gongbingwong.crime.crime_id
+    WHERE 
+        crime_code_description IN 
+        (
+        'RESISTING ARREST',
+        'ARSON',
+        'FALSE POLICE REPORT',
+        'CRIMINAL THREATS - NO WEAPON DISPLAYED',
+        'TRESPASSING',
+        'DOCUMENT FORGERY / STOLEN FELONY',
+        'FAILURE TO DISPERSE',
+        'BATTERY POLICE (SIMPLE)',
+        'ASSAULT WITH DEADLY WEAPON ON POLICE OFFICER',
+        'INCITING A RIOT',
+        'DISTURBING THE PEACE'
+        )
+    GROUP BY 
+        EXTRACT(YEAR FROM date_), EXTRACT(MONTH FROM date_)
+    )
+    SELECT
+        covid_data.year,
+        covid_data.month,
+        covid_data."Hospitalized Hispanic",
+        covid_data."Hospitalized Non-Hispanic",
+        crime_data."Hispanic Victims",
+        crime_data."Non-Hispanic Victims"
+    FROM 
+        covid_data JOIN crime_data ON 
+        covid_data.year = crime_data.year AND covid_data.month = crime_data.month
+    ORDER BY covid_data.year, covid_data.month
     """)
     query_results = cursor.fetchall()
 
-    cursor.execute("""
-    SELECT x.year, x.month, x."Hispanic Victims", y."Non-Hispanic Victims"
-    FROM
-    (   
-        SELECT  crime_code_description, EXTRACT(YEAR FROM date_) AS year, EXTRACT(MONTH FROM date_) AS month, COUNT(*) AS "Hispanic Victims"
-        FROM gongbingwong.victim
-        JOIN 
-        gongbingwong.crime ON gongbingwong.victim.victim_of = gongbingwong.crime.crime_id
-        WHERE descent = 'H'AND
-        crime_code_description = 'RESISTING ARREST' OR
-        crime_code_description = 'ARSON' OR
-        crime_code_description = 'FALSE POLICE REPORT' OR
-        crime_code_description = 'CRIMINAL THREATS - NO WEAPON DISPLAYED' OR
-        crime_code_description = 'TRESPASSING' OR
-        crime_code_description = 'DOCUMENT FORGERY / STOLEN FELONY' OR
-        crime_code_description = 'FAILURE TO DISPERSE' OR
-        crime_code_description = 'BATTERY POLICE (SIMPLE)' OR
-        crime_code_description = 'ASSAULT WITH DEADLY WEAPON ON POLICE OFFICER' OR
-        crime_code_description = 'INCITING A RIOT' OR
-        crime_code_description = 'DISTURBING THE PEACE' 
-        GROUP BY crime_code_description, EXTRACT(YEAR FROM date_), EXTRACT(MONTH FROM date_)
-    ) x
-    INNER JOIN
-    (
-        SELECT  crime_code_description, EXTRACT(YEAR FROM date_) AS year, EXTRACT(MONTH FROM date_) AS month, COUNT(*) AS "Non-Hispanic Victims"
-        FROM gongbingwong.victim
-        JOIN 
-        gongbingwong.crime ON gongbingwong.victim.victim_of = gongbingwong.crime.crime_id
-        WHERE NOT descent = 'H' AND
-        crime_code_description = 'RESISTING ARREST' OR
-        crime_code_description = 'ARSON' OR
-        crime_code_description = 'FALSE POLICE REPORT' OR
-        crime_code_description = 'CRIMINAL THREATS - NO WEAPON DISPLAYED' OR
-        crime_code_description = 'TRESPASSING' OR
-        crime_code_description = 'DOCUMENT FORGERY / STOLEN FELONY' OR
-        crime_code_description = 'FAILURE TO DISPERSE' OR
-        crime_code_description = 'BATTERY POLICE (SIMPLE)' OR
-        crime_code_description = 'ASSAULT WITH DEADLY WEAPON ON POLICE OFFICER' OR
-        crime_code_description = 'INCITING A RIOT' OR
-        crime_code_description = 'DISTURBING THE PEACE' 
-        GROUP BY crime_code_description, EXTRACT(YEAR FROM date_), EXTRACT(MONTH FROM date_)
-    ) y ON x.year = y.year and x.month = y.month AND x.crime_code_description=y.crime_code_description
-    ORDER BY x.year, x.month;
-    """)
-    query_results2 = cursor.fetchall()
+    # cursor.execute("""
+    # SELECT x.year, x.month, x."Hispanic Victims", y."Non-Hispanic Victims"
+    # FROM
+    # (   
+    #     SELECT  crime_code_description, EXTRACT(YEAR FROM date_) AS year, EXTRACT(MONTH FROM date_) AS month, COUNT(*) AS "Hispanic Victims"
+    #     FROM gongbingwong.victim
+    #     JOIN 
+    #     gongbingwong.crime ON gongbingwong.victim.victim_of = gongbingwong.crime.crime_id
+    #     WHERE descent = 'H'AND
+    #     crime_code_description = 'RESISTING ARREST' OR
+    #     crime_code_description = 'ARSON' OR
+    #     crime_code_description = 'FALSE POLICE REPORT' OR
+    #     crime_code_description = 'CRIMINAL THREATS - NO WEAPON DISPLAYED' OR
+    #     crime_code_description = 'TRESPASSING' OR
+    #     crime_code_description = 'DOCUMENT FORGERY / STOLEN FELONY' OR
+    #     crime_code_description = 'FAILURE TO DISPERSE' OR
+    #     crime_code_description = 'BATTERY POLICE (SIMPLE)' OR
+    #     crime_code_description = 'ASSAULT WITH DEADLY WEAPON ON POLICE OFFICER' OR
+    #     crime_code_description = 'INCITING A RIOT' OR
+    #     crime_code_description = 'DISTURBING THE PEACE' 
+    #     GROUP BY crime_code_description, EXTRACT(YEAR FROM date_), EXTRACT(MONTH FROM date_)
+    # ) x
+    # INNER JOIN
+    # (
+    #     SELECT  crime_code_description, EXTRACT(YEAR FROM date_) AS year, EXTRACT(MONTH FROM date_) AS month, COUNT(*) AS "Non-Hispanic Victims"
+    #     FROM gongbingwong.victim
+    #     JOIN 
+    #     gongbingwong.crime ON gongbingwong.victim.victim_of = gongbingwong.crime.crime_id
+    #     WHERE NOT descent = 'H' AND
+    #     crime_code_description = 'RESISTING ARREST' OR
+    #     crime_code_description = 'ARSON' OR
+    #     crime_code_description = 'FALSE POLICE REPORT' OR
+    #     crime_code_description = 'CRIMINAL THREATS - NO WEAPON DISPLAYED' OR
+    #     crime_code_description = 'TRESPASSING' OR
+    #     crime_code_description = 'DOCUMENT FORGERY / STOLEN FELONY' OR
+    #     crime_code_description = 'FAILURE TO DISPERSE' OR
+    #     crime_code_description = 'BATTERY POLICE (SIMPLE)' OR
+    #     crime_code_description = 'ASSAULT WITH DEADLY WEAPON ON POLICE OFFICER' OR
+    #     crime_code_description = 'INCITING A RIOT' OR
+    #     crime_code_description = 'DISTURBING THE PEACE' 
+    #     GROUP BY crime_code_description, EXTRACT(YEAR FROM date_), EXTRACT(MONTH FROM date_)
+    # ) y ON x.year = y.year and x.month = y.month AND x.crime_code_description=y.crime_code_description
+    # ORDER BY x.crime_code_description, x.year, x.month
+    # """)
+    # query_results2 = cursor.fetchall()
 
-    df = pd.DataFrame(query_results, columns=['Year', 'Month', 'Hospitalized Hispanic', 'Hospitalized Non-Hispanic'])
+    df = pd.DataFrame(query_results, columns=['Year', 'Month', 'Hospitalized Hispanic', 'Hospitalized Non-Hispanic', 'Hispanic Victims', 'Non-Hispanic Victims'])
 
     df['Date'] = pd.to_datetime(df['Year'])
     df['Date'] = pd.to_datetime(df[['Year', 'Month']].assign(day=1))
@@ -444,13 +488,16 @@ def queryfive():
     # df_pivot.ffill(axis=0, inplace=True)
     # df_pivot.reset_index(inplace=True)
     # df_melted = pd.melt(df_pivot, id_vars='Date', value_vars=df['Hospitalized'].unique(), value_name='HospitalizedHispanic', var_name='Hospitalized')
-    fig = px.line(df, x='Date', y=['Hospitalized Hispanic','Hospitalized Non-Hispanic'], title='Ratio Between Affected Ethnicities')
+    fig = px.line(df, x='Date', y=['Hospitalized Hispanic','Hospitalized Non-Hispanic', 'Hispanic Victims', 'Non-Hispanic Victims'], title='Ratio Between Affected Ethnicities')
     # fig = px.line(df, x='Date', y='Hospitalized Hispanic', title='Total Crimes by Month')
     # fig.add_scatter(x=df['Date'], y=df['Hospitalized Non-Hispanic'], mode='lines')
 
     print(fig.data[0])
     fig_data = fig.to_html(full_html=False)
     graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    return render_template("queryfive.html", graphJSON=graphJSON)
+
+
     # SELECT x.year, x.month, x.crime_code_description, x."Hispanic Victims", y."Non-Hispanic Victims"
     # FROM
     # (
@@ -471,66 +518,6 @@ def queryfive():
     #     GROUP BY crime_code_description, EXTRACT(YEAR FROM date_), EXTRACT(MONTH FROM date_)
     # ) y ON x.year = y.year and x.month = y.month AND x.crime_code_description=y.crime_code_description
     # ORDER BY x.year, x.month
-
-
-
-    return render_template("queryfive.html", graphJSON=graphJSON)
-
-
-
-# this was a way to see if I can create dash-like graphs without Dash; only using flask and plotly
-@app_blueprint.route('/callback', methods=['POST', 'GET'])
-def cb():
-    return gm(request.args.get('data'))
-
-@app_blueprint.route('/callback2', methods=['POST', 'GET'])
-def cback():
-    return queryfive()
-
-def gm(country='United Kingdom'):
-    df = pd.DataFrame(px.data.gapminder())
-
-    fig = px.line(df[df['country'] == country], x="year", y="gdpPercap")
-
-    graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-    print(fig.data[0])
-
-    return graphJSON
-
-
-def dy():
-    # Create figure with secondary y-axis
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-
-    # Add traces
-    fig.add_trace(
-        go.Scatter(x=[1, 2, 3], y=[40, 50, 60], name="yaxis data"),
-        secondary_y=False,
-    )
-
-    fig.add_trace(
-        go.Scatter(x=[2, 3, 4], y=[4, 5, 6], name="yaxis2 data"),
-        secondary_y=True,
-    )
-
-    # Add figure title
-    fig.update_layout(
-        title_text="Double Y Axis Example"
-    )
-
-    # Set x-axis title
-    fig.update_xaxes(title_text="xaxis title")
-
-    # Set y-axes titles
-    fig.update_yaxes(title_text="<b>primary</b> yaxis title", secondary_y=False)
-    fig.update_yaxes(title_text="<b>secondary</b> yaxis title", secondary_y=True)
-
-    graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-
-    # fig.show()    
-    return graphJSON
-
-
 
 
 
