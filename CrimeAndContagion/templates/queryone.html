@@ -6,32 +6,17 @@ content %}
       <div id="chart1">
         <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-        <script>
-          function cb(selection) {
-            $.getJSON({
-              url: "/callback",
-              data: { data: selection },
-              success: function (result) {
-                Plotly.newPlot("chart", result, { staticPlot: true });
-              },
-            });
-          }
-        </script>
         <body style="font-family: arial, sans-serif">
-          <!-- <h1>CRIME TRENDS</h1> -->
-          <!-- <h2>Choose your country</h2> -->
-          <p>
-            How have the crimes of theft, assault, and vandalism developed over time? 
-            You can select and isolate the different types of crime on the right hand column 
-            to delve deeper.
-          </p>
-          <!-- <input
-            type="text"
-            id="fname"
-            name="fname"
-            onchange="cb(this.value)"
-          /> -->
           <div id="chart" class="chart"></div>
+          <form method="POST">
+            <label for="crime_select">Select a crime:</label>
+            <select name="crime_code" id="crime_select">
+                {% for crime in crime_codes %}
+                    <option value="{{ crime }}">{{ crime }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">Submit</button>
+        </form>
         </body>
         <script>
           d = {{ graphJSON | safe }};

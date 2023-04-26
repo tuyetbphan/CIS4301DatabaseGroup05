@@ -1,27 +1,26 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+{% extends "base.html" %}
+{% block
+  content %}
+  <style>
+    .image-container {
+   background-image: url("static/crime_contagion.jpg");
+background-size: cover;
+background-repeat: no-repeat;
+height: 100vh;
+margin-top: 20px;
+}
+ body {
+margin: 0;
+padding: 0;
+overflow-x: hidden;
+}
+ .bottom-left {
+ font-size: 40px;
+ position: absolute;
+ bottom: 1px;
+ margin-right: 0cm;
+}
 
-    <!-- css -->
-    <style>
-      body {
-        background-image: url("/static/c1.png");
-        background-repeat: no-repeat;
-        background-attachment: fixed;
-        background-size: 100% 700px, cover;
-      }
-      button {
-        margin-left: 45%;
-        margin-top: 650px;
-      }
-    </style>
-  </head>
-  <body>
-    <a id="home" href="/queryone">
-      <button type="button">CLICK HERE TO LEARN MORE</button>
-    </a>
-  </body>
-</html>
+
+ </style>
+  {% endblock %}

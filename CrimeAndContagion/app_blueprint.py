@@ -28,7 +28,7 @@ def homepage():
     return render_template("homepage.html")
 
 # Query 1: How have the crimes of theft, assault, and vandalism developed over time? 
-@app_blueprint.route('/queryone')
+@app_blueprint.route('/queryone', methods=['GET', 'POST'])
 def queryone():
     cursor = connection.cursor()
     cursor.execute("""
@@ -79,56 +79,89 @@ def querytwo():
     cursor = connection.cursor()
     cursor.execute("""
         SELECT 
-        TRUNC(Date_, 'MM') AS Month_,
-        COUNT(*) AS Value,
-        'Theft Victims' AS Category
-    FROM 
-        GONGBINGWONG.Crime
-        JOIN GONGBINGWONG.Victim ON GONGBINGWONG.Crime.Crime_ID = GONGBINGWONG.Victim.Victim_Of
-    WHERE 
-        Age BETWEEN 18 AND 49 AND 
-        Crime_Code_Description LIKE '%THEFT%' AND 
-        Date_ >= TO_DATE('2020-01-01', 'YYYY-MM-DD') AND 
-        Date_ <= TO_DATE('2022-12-31', 'YYYY-MM-DD') 
-    GROUP BY 
-        TRUNC(Date_, 'MM')
-    
+    TRUNC(Date_, 'MM') AS Case_Date,
+    COUNT(*) AS Value,
+    'Theft Victims' AS Category,
+    CASE
+        WHEN Age BETWEEN 0 AND 17 THEN '0 - 17 years'
+        WHEN Age BETWEEN 18 AND 49 THEN '18 to 49 years'
+        WHEN Age BETWEEN 50 AND 64 THEN '50 to 64 years'
+        WHEN Age > 64 THEN '65+ years'
+        WHEN Age IS null THEN 'missing'
+        END AS Age_Group
+FROM 
+    GONGBINGWONG.Crime
+JOIN 
+    GONGBINGWONG.Victim 
+ON 
+    GONGBINGWONG.Crime.Crime_ID = GONGBINGWONG.Victim.Victim_Of
+WHERE 
+    Crime_Code_Description LIKE '%THEFT%' AND 
+    Date_ >= TO_DATE('2010-01-10', 'YYYY-MM-DD') AND 
+    Date_ <= TO_DATE('2023-03-27', 'YYYY-MM-DD') 
+GROUP BY 
+    TRUNC(Date_, 'MM'), 
+    CASE
+        WHEN Age BETWEEN 0 AND 17 THEN '0 - 17 years'
+        WHEN Age BETWEEN 18 AND 49 THEN '18 to 49 years'
+        WHEN Age BETWEEN 50 AND 64 THEN '50 to 64 years'
+        WHEN Age > 64 THEN '65+ years'
+        WHEN Age IS null THEN 'missing'
+        END
+
     UNION ALL
+
     SELECT 
-        Case_Date,
-        COUNT(*) AS Value,
-        'COVID-19 Patients' AS Category
+        TRUNC(Case_Date, 'MM') AS Case_Date,
+         COUNT(*) AS Value,
+        'COVID-19 Patients' AS Category,
+        Age_Group
+       
     FROM 
-        TPHAN1.COVID_19 JOIN TPHAN1.Patient ON Case_ID = Infected_Case
+        TPHAN1.COVID_19 
+    JOIN 
+    TPHAN1.Patient 
+    ON 
+    Case_ID = Infected_Case
     WHERE 
-        Age_Group = '18 to 49 years' 
-        AND Case_Date >= TO_DATE('2020-01-01', 'YYYY-MM-DD')  
-        AND Case_Date <= TO_DATE('2022-12-31', 'YYYY-MM-DD')
+        Case_Date >= TO_DATE('2010-01-10', 'YYYY-MM-DD')  
+        AND Case_Date <= TO_DATE('2023-03-27', 'YYYY-MM-DD')
         AND CURRENT_STATUS = 'Laboratory-confirmed case'
     GROUP BY 
-        Case_Date
+        Case_Date, Age_Group
     """)
     
     result = cursor.fetchall()
+    # df = pd.DataFrame(result, columns=['Date', 'Number of People', 'Category', 'Age Group'])
+    df = pd.DataFrame(result, columns=['TRUNC(Date_, \'MM\')', 'Number of People', 'Category', 'Age_Group'])
+    df['Age_Group'] = df['Age_Group'].astype('category')
 
-    df = pd.DataFrame(result, columns=['Date', 'Value', 'Category'])
-    print(df)
-    df_pivot = df.pivot(index='Date', columns='Category', values='Value')
-    df_pivot = df_pivot.ffill(axis=0)
-    df_pivot.reset_index(inplace=True)
+    # Pivot the DataFrame to create separate columns for theft victims and COVID-19 patients
+    # df_pivot = df.pivot(index='Case_Date', columns=['Category', 'Age_Group'], values='Value')
+    df_pivot = df.pivot(index='TRUNC(Date_, \'MM\')', columns=['Category', 'Age_Group'], values='Number of People')
     print(df_pivot)
-    
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-    
-    fig.add_trace(go.Scatter(x=df_pivot['Date'], y=df_pivot['Theft Victims'], name='Theft Victims'), secondary_y=False)
-    fig.add_trace(go.Scatter(x=df_pivot['Date'], y=df_pivot['COVID-19 Patients'], name='COVID-19 Patients'), secondary_y=True)
+    # Create a line plot using Plotly Express
+    fig = px.line(df_pivot, x=df_pivot.index, y=['Category', 'Age_Group'], title='Theft Victims and COVID-19 Patients')
+    fig.update_layout(xaxis_title='Case Date', yaxis_title='Value')
 
-    fig.update_layout(title='Theft Victims and COVID-19 Patients',
-                      xaxis_title='Date',
-                      yaxis_title='Number of Theft Victims',
-                      yaxis2_title='Number of COVID-19 Patients')
-    
-    fig_data = fig.to_html(full_html=False)
+    # Create a dropdown menu for selecting age groups
+    age_groups = df['Age_Group'].unique().tolist()
+    buttons = []
+    for age_group in age_groups:
+        buttons.append(dict(method='update', label=age_group, args=[{'visible': [False]*len(df_pivot.columns)},
+                                                                {'title': f'Theft Victims and COVID-19 Patients ({age_group})'},
+                                                                {'yaxis.title': f'Value ({age_group})'},
+                                                                {'visible': [True if col.endswith(age_group) else False for col in df_pivot.columns]}]))
+
+        updatemenus = [{'buttons': buttons,
+                'direction': 'down',
+                'showactive': True,
+                'x': 0.1,
+                'y': 1.1}]
+
+        fig.update_layout(updatemenus=updatemenus)
+
+    # Convert the plot to a JSON string for rendering in the web application
     graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
     return render_template("querytwo.html", graphJSON=graphJSON)
@@ -235,7 +268,8 @@ ORDER BY
 ##################################################################################################################
 # Query 5: What is the ratio of Hispanics to Non-Hispanics who were hospitalized due to COVID-19 and Hispanics to 
 # Non-Hispanics who experienced [insert crime] from 2020 to the present? Can trend patterns be detected? 
-@app_blueprint.route('/queryfive')
+
+@app_blueprint.route('/queryfive', methods=['GET', 'POST'])
 def queryfive():
     cursor = connection.cursor()
     cursor.execute("""
@@ -266,36 +300,7 @@ def queryfive():
         MIN(Date_)
     """)
 
-    #this produces a weird graph
-    # query_results = cursor.fetchall()
 
-    # df = pd.DataFrame(query_results, columns=['Month', 'Crime_Code_Description', 'Black', 'White', 'American_Indian/Alaskan Native', 'Chinese', 'Cambodian', 'Filipino', 'Japanese', 'Korean', 'Laotian', 'Vietnamese'])
-
-    # fig = go.Figure()
-
-    # # plot data for each race
-    # for race in ['Black', 'White', 'American_Indian/Alaskan Native', 'Chinese', 'Cambodian', 'Filipino', 'Japanese', 'Korean', 'Laotian', 'Vietnamese']:
-    #     df_race = df[['Month', 'Crime_Code_Description', race]]
-    #     grouped_df = df_race.groupby(['Month', 'Crime_Code_Description']).mean().reset_index()
-    # for code in grouped_df['Crime_Code_Description'].unique():
-    #     fig.add_trace(go.Scatter(x=grouped_df[grouped_df['Crime_Code_Description'] == code]['Month'],
-    #                              y=grouped_df[grouped_df['Crime_Code_Description'] == code][race],
-    #                              name=f'{code} ({race})'))
-
-    # fig.update_yaxes(title_text='Percentage of Victims')
-    # fig.update_xaxes(title_text='Month')
-    # fig.update_layout(height=800, width=1000, title_text='Crime by Demographics', legend_title_text='Crime Code Description (Race)')
-
-    # if len(fig.data) > 0:
-    #     fig_data = fig.to_html(full_html=False)
-    #     graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-    #     return render_template("queryfive.html", graphJSON=graphJSON)
-    # else:
-    #     return "No data available for the specified time period and crime codes."
-
-
-
-    #this produces mini graphs
     query_results = cursor.fetchall()
 
     df = pd.DataFrame(query_results, columns=['Month', 'Crime_Code_Description', 'Black', 'White', 'American_Indian/Alaskan Native', 'Chinese', 'Cambodian', 'Filipino', 'Japanese', 'Korean', 'Laotian', 'Vietnamese'])
@@ -303,76 +308,36 @@ def queryfive():
     # Create a plot for each crime code description
     crime_codes = df['Crime_Code_Description'].unique()
 
-
-    if len(crime_codes) > 0:
-        fig = make_subplots(rows=len(crime_codes),
-                        cols=1,
-                        subplot_titles=crime_codes)
-
-        row = 1
-
-        # plot data for each crime code description
-        for code in crime_codes:
-            df_code = df[df['Crime_Code_Description'] == code]
-            fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['Black'], name='Black'), row=row, col=1)
-            fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['White'], name='White'), row=row, col=1)
-            fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['American_Indian/Alaskan Native'], name='American_Indian/Alaskan Native'), row=row, col=1)
-            fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['Chinese'], name='Chinese'), row=row, col=1)
-            fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['Cambodian'], name='Cambodian'), row=row, col=1)
-            fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['Filipino'], name='Filipino'), row=row, col=1)
-            fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['Japanese'], name='Japanese'), row=row, col=1)
-            fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['Korean'], name='Korean'), row=row, col=1)
-            fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['Laotian'], name='Laotian'), row=row, col=1)
-            fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['Vietnamese'], name='Vietnamese'), row=row, col=1)
-            fig.update_yaxes(title_text='Percentage of Victims', row=row, col=1)
-            fig.update_xaxes(title_text='Month', row=row, col=1)
-            row += 1
-
-        fig.update_layout(height=1000, width=1200, title_text='Crime by Demographics')
+    if request.method == 'POST':
+        selected_code = request.form.get('crime_code')
     else:
-        fig = go.Figure()
-        fig.update_layout(title_text='No crime data found')
+        selected_code = crime_codes[0]
+
+    df_code = df[df['Crime_Code_Description'] == selected_code]
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['Black'], name='Black'))
+    fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['White'], name='White'))
+    fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['American_Indian/Alaskan Native'], name='American_Indian/Alaskan Native'))
+    fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['Chinese'], name='Chinese'))
+    fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['Cambodian'], name='Cambodian'))
+    fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['Filipino'], name='Filipino'))
+    fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['Japanese'], name='Japanese'))
+    fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['Korean'], name='Korean'))
+    fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['Laotian'], name='Laotian'))
+    fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['Vietnamese'], name='Vietnamese'))
+    fig.update_yaxes(title_text='Percentage of Victims')
+    fig.update_xaxes(title_text='Month')
+   
+
+    fig.update_layout(height=1000, width=1200, title_text='Crime by Demographics')
 
     if len(fig.data) > 0:
         print(fig.data[0])
-        fig_data = fig.to_html(full_html=False)
         graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-        return render_template("queryfive.html", graphJSON=graphJSON)
+        return render_template("queryfive.html", graphJSON=graphJSON, crime_codes=crime_codes)
     else:
         return "No data available for the specified time period and crime codes."
 
-    
-    
-    
-    # extraneous 
-    # print(fig.data[0])
-    # fig_data = fig.to_html(full_html=False)
-    # graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-
-    # # return render_template("queryfive.html")
-    # return render_template("queryfive.html", graphJSON=graphJSON)
-
-
-     #305
-    # fig = make_subplots(rows=len(crime_codes),
-    # cols=1,
-    # subplot_titles=crime_codes)
-
-    # row = 1
-
-    # for code in crime_codes:
-    #     df_code = df[df['Crime_Code_Description'] == code]
-    # for col in ['Black', 'White', 'American_Indian', 'Chinese', 'Cambodian', 'Filipino', 'Japanese', 'Korean', 'Laotian', 'Vietnamese']:
-    #     print(df_code)
-    #     fig.add_trace(go.Scatter(x=df_code['month'], y=df_code[col], mode='lines', name=col), row=row, col=1)
-
-    # fig.update_xaxes(title_text='Month', row=row, col=1)
-    # fig.update_yaxes(title_text='Race Ratio', row=row, col=1)
-
-    # row += 1
-
-    # fig.update_layout(height=1200, width=800, title_text='Race Ratios for Different Crime Codes')
-    #324
 
 
 
