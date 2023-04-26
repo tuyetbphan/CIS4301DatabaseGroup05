@@ -98,7 +98,7 @@ def querytwo():
                 (Age BETWEEN 0 AND 17 OR Age BETWEEN 18 AND 49 OR Age BETWEEN 50 AND 64 OR Age >= 65) AND
                 (Crime_Code_Description LIKE '%THEFT%' OR Crime_Code_Description LIKE '%ASSAULT%') AND
                 Date_ >= TO_DATE('2010-01-01', 'YYYY-MM-DD') AND
-                Date_ <= TO_DATE('2023-12-31', 'YYYY-MM-DD')
+                Date_ <= TO_DATE('2023-01-31', 'YYYY-MM-DD') 
             GROUP BY
                 TRUNC(Date_, 'MM'),
                 CASE
@@ -124,7 +124,7 @@ def querytwo():
             WHERE
                 (Age_Group = '0 - 17 years' OR Age_Group = '18 to 49 years' OR Age_Group = '50 to 64 years' OR Age_Group = '65+ years') AND
                 Case_Date >= TO_DATE('2010-01-01', 'YYYY-MM-DD') AND
-                Case_Date <= TO_DATE('2023-12-31', 'YYYY-MM-DD') AND
+                Case_Date <= TO_DATE('2023-01-31', 'YYYY-MM-DD') AND
                 CURRENT_STATUS = 'Laboratory-confirmed case'
             GROUP BY
                 TRUNC(Case_Date, 'MM'),
@@ -196,14 +196,14 @@ def querythree():
             SELECT Area_Name, EXTRACT(YEAR FROM Date_) AS year, EXTRACT(MONTH FROM Date_) AS month,
             COUNT(*) AS total_crimes
             FROM gongbingwong.crime
-            WHERE Date_ >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND Date_ <= TO_DATE('27-MAR-23', 'DD-MON-YY')
+            WHERE Date_ >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND Date_ <= TO_DATE('28-FEB-23', 'DD-MON-YY')
             GROUP BY Area_Name, EXTRACT(YEAR FROM Date_), EXTRACT(MONTH FROM Date_)
         ) curr
         JOIN (
             SELECT Area_Name, EXTRACT(YEAR FROM Date_) AS year, EXTRACT(MONTH FROM Date_) AS month,
             COUNT(*) AS total_crimes
             FROM gongbingwong.crime
-            WHERE Date_ >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND Date_ <= TO_DATE('27-MAR-23', 'DD-MON-YY')
+            WHERE Date_ >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND Date_ <= TO_DATE('28-FEB-23', 'DD-MON-YY')
             GROUP BY Area_Name, EXTRACT(YEAR FROM Date_), EXTRACT(MONTH FROM Date_)
         ) prev ON curr.Area_Name = prev.Area_Name AND curr.year = prev.year AND curr.month = prev.month + 1
         ORDER BY curr.Area_Name, curr.year, curr.month
@@ -264,7 +264,7 @@ FROM (
     FROM 
         GONGBINGWONG.Crime c 
     WHERE 
-        c.Date_ >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND c.Date_ <= TO_DATE('27-MAR-23', 'DD-MON-YY')
+        c.Date_ >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND c.Date_ <= TO_DATE('31-JAN-23', 'DD-MON-YY')
     GROUP BY 
         EXTRACT(YEAR FROM c.Date_), 
         EXTRACT(MONTH FROM c.Date_)
@@ -277,7 +277,7 @@ LEFT JOIN (
     FROM 
         TPHAN1.COVID_19 b
     WHERE 
-        b.case_date >= TO_DATE('01-JAN-20', 'DD-MON-YY') AND b.case_date <= TO_DATE('01-FEB-23', 'DD-MON-YY')
+        b.case_date >= TO_DATE('01-JAN-20', 'DD-MON-YY') AND b.case_date <= TO_DATE('31-JAN-23', 'DD-MON-YY')
     GROUP BY 
         EXTRACT(YEAR FROM b.case_date), 
         EXTRACT(MONTH FROM b.case_date)
