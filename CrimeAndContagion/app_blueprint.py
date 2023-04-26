@@ -339,6 +339,40 @@ def queryfive():
         return "No data available for the specified time period and crime codes."
 
 
+@app_blueprint.route('/records', methods=['GET', 'POST'])
+def records():
+    if request.method == 'POST':
+        cursor = connection.cursor()
+        cursor.execute("""SELECT COUNT(*) FROM GONGBINGWONG.CRIME""")
+        crime_results = cursor.fetchall()
 
+        cursor.execute("""SELECT COUNT(*) FROM GONGBINGWONG.Victim""")
+        victim_results = cursor.fetchall()
 
+        cursor.execute("""SELECT COUNT(*) FROM TPHAN1.Patient""")
+        patient_results = cursor.fetchall()
 
+        cursor.execute("""SELECT COUNT(*) FROM TPHAN1.COVID_19""")
+        covid19_results = cursor.fetchall()
+
+        cursor.execute("""
+        SELECT SUM("COUNT(*)") AS TOTAL_SUM
+        FROM (
+            SELECT COUNT(*) FROM GONGBINGWONG.CRIME UNION ALL
+            SELECT COUNT(*) FROM GONGBINGWONG.Victim UNION ALL
+            SELECT COUNT(*) FROM TPHAN1.Patient UNION ALL
+            SELECT COUNT(*) FROM TPHAN1.COVID_19
+        ) COMBINED_TABLE
+        """)
+        total_results = cursor.fetchall()
+
+        records = {
+            'crime': crime_results[0][0],
+            'victim': victim_results[0][0],
+            'patient': patient_results[0][0],
+            'covid19': covid19_results[0][0],
+            'total': total_results[0][0]
+        }
+        return render_template('records.html', records=records)
+    else:
+        return render_template('records.html')

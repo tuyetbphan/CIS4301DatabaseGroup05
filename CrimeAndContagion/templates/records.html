@@ -1,0 +1,24 @@
+{% extends "base.html" %} {% block title%}Query Three{% endblock %} {% block
+content %}
+<body>
+  <h1>Records</h1>
+  <form action="{{ url_for('app_blueprint.records') }}" method="post">
+    <button type="submit">Fetch Records</button>
+  </form>
+  {% if records %}
+  <h2>Results:</h2>
+  <ul>
+    <li>Number of tuples in Crime Data: {{ records.crime }}</li>
+    <li>Number of tuples in Victims Data: {{ records.victim }}</li>
+    <li>Number of tuples in Patients Data: {{ records.patient }}</li>
+    <li>Number of tuples in COVID-19 Cases Data: {{ records.covid19 }}</li>
+    <li>Total number of tuples in all database tables: {{ records.total }}</li>
+    <p>
+      We obtained the COVID-19 and Patient datasets from the Centers for Disease
+      Control and Prevention and the Crime and Victim dataset from Los Angeles
+      Open Data.
+    </p>
+  </ul>
+  {% endif %}
+</body>
+{% endblock %}
