@@ -75,93 +75,111 @@ def queryone():
 # Query 2:  How has the number of victims between the ages of 18-49 affected by crimes of theft and COVID-19 developed in 2020? And the following two years?
 @app_blueprint.route('/querytwo')
 def querytwo():
-
     cursor = connection.cursor()
     cursor.execute("""
-        SELECT 
-    TRUNC(Date_, 'MM') AS Case_Date,
-    COUNT(*) AS Value,
-    'Theft Victims' AS Category,
-    CASE
-        WHEN Age BETWEEN 0 AND 17 THEN '0 - 17 years'
-        WHEN Age BETWEEN 18 AND 49 THEN '18 to 49 years'
-        WHEN Age BETWEEN 50 AND 64 THEN '50 to 64 years'
-        WHEN Age > 64 THEN '65+ years'
-        WHEN Age IS null THEN 'missing'
-        END AS Age_Group
-FROM 
-    GONGBINGWONG.Crime
-JOIN 
-    GONGBINGWONG.Victim 
-ON 
-    GONGBINGWONG.Crime.Crime_ID = GONGBINGWONG.Victim.Victim_Of
-WHERE 
-    Crime_Code_Description LIKE '%THEFT%' AND 
-    Date_ >= TO_DATE('2010-01-10', 'YYYY-MM-DD') AND 
-    Date_ <= TO_DATE('2023-03-27', 'YYYY-MM-DD') 
-GROUP BY 
-    TRUNC(Date_, 'MM'), 
-    CASE
-        WHEN Age BETWEEN 0 AND 17 THEN '0 - 17 years'
-        WHEN Age BETWEEN 18 AND 49 THEN '18 to 49 years'
-        WHEN Age BETWEEN 50 AND 64 THEN '50 to 64 years'
-        WHEN Age > 64 THEN '65+ years'
-        WHEN Age IS null THEN 'missing'
-        END
-
-    UNION ALL
-
-    SELECT 
-        TRUNC(Case_Date, 'MM') AS Case_Date,
-         COUNT(*) AS Value,
-        'COVID-19 Patients' AS Category,
-        Age_Group
-       
-    FROM 
-        TPHAN1.COVID_19 
-    JOIN 
-    TPHAN1.Patient 
-    ON 
-    Case_ID = Infected_Case
-    WHERE 
-        Case_Date >= TO_DATE('2010-01-10', 'YYYY-MM-DD')  
-        AND Case_Date <= TO_DATE('2023-03-27', 'YYYY-MM-DD')
-        AND CURRENT_STATUS = 'Laboratory-confirmed case'
-    GROUP BY 
-        Case_Date, Age_Group
+        WITH crime_age_group AS (
+            SELECT
+                TRUNC(Date_, 'MM') AS Month_,
+                COUNT(*) AS Value,
+                CASE
+                    WHEN Age BETWEEN 0 AND 17 THEN '0-17'
+                    WHEN Age BETWEEN 18 AND 49 THEN '18-49'
+                    WHEN Age BETWEEN 50 AND 64 THEN '50-64'
+                    ELSE '65+'
+                END AS Age_Group,
+                CASE
+                    WHEN Crime_Code_Description LIKE '%THEFT%' THEN 'Theft Victims'
+                    WHEN Crime_Code_Description LIKE '%ASSAULT%' THEN 'Assault Victims'
+                END AS Category
+            FROM
+                GONGBINGWONG.Crime
+                JOIN GONGBINGWONG.Victim ON GONGBINGWONG.Crime.Crime_ID = GONGBINGWONG.Victim.Victim_Of
+            WHERE
+                (Age BETWEEN 0 AND 17 OR Age BETWEEN 18 AND 49 OR Age BETWEEN 50 AND 64 OR Age >= 65) AND
+                (Crime_Code_Description LIKE '%THEFT%' OR Crime_Code_Description LIKE '%ASSAULT%') AND
+                Date_ >= TO_DATE('2010-01-01', 'YYYY-MM-DD') AND
+                Date_ <= TO_DATE('2023-12-31', 'YYYY-MM-DD')
+            GROUP BY
+                TRUNC(Date_, 'MM'),
+                CASE
+                    WHEN Age BETWEEN 0 AND 17 THEN '0-17'
+                    WHEN Age BETWEEN 18 AND 49 THEN '18-49'
+                    WHEN Age BETWEEN 50 AND 64 THEN '50-64'
+                    ELSE '65+'
+                END,
+                CASE
+                    WHEN Crime_Code_Description LIKE '%THEFT%' THEN 'Theft Victims'
+                    WHEN Crime_Code_Description LIKE '%ASSAULT%' THEN 'Assault Victims'
+                END
+        ),
+        covid_age_group AS (
+            SELECT
+                TRUNC(Case_Date, 'MM') AS Month_,
+                COUNT(*) AS Value,
+                Age_Group,
+                'COVID-19 Patients' AS Category
+            FROM
+                TPHAN1.COVID_19
+                JOIN TPHAN1.patient ON TPHAN1.COVID_19.Case_ID = TPHAN1.patient.Infected_Case
+            WHERE
+                (Age_Group = '0 - 17 years' OR Age_Group = '18 to 49 years' OR Age_Group = '50 to 64 years' OR Age_Group = '65+ years') AND
+                Case_Date >= TO_DATE('2010-01-01', 'YYYY-MM-DD') AND
+                Case_Date <= TO_DATE('2023-12-31', 'YYYY-MM-DD') AND
+                CURRENT_STATUS = 'Laboratory-confirmed case'
+            GROUP BY
+                TRUNC(Case_Date, 'MM'),
+                Age_Group
+        ),
+        combined_data AS (
+            SELECT * FROM crime_age_group
+            UNION ALL
+            SELECT * FROM covid_age_group
+        ),
+        monthly_data AS (
+            SELECT
+                Month_,
+                SUM(Value) AS TotalValue,
+                Age_Group,
+                Category
+            FROM
+                combined_data
+            GROUP BY
+                Month_,
+                Age_Group,
+                Category
+        )
+        SELECT
+            Month_,
+            TotalValue - LAG(TotalValue) OVER (PARTITION BY Age_Group, Category ORDER BY Month_) AS MonthlyChange,
+            Age_Group,
+            Category
+        FROM
+            monthly_data
     """)
-    
+
     result = cursor.fetchall()
-    # df = pd.DataFrame(result, columns=['Date', 'Number of People', 'Category', 'Age Group'])
-    df = pd.DataFrame(result, columns=['TRUNC(Date_, \'MM\')', 'Number of People', 'Category', 'Age_Group'])
-    df['Age_Group'] = df['Age_Group'].astype('category')
+    df = pd.DataFrame(result, columns=['Date', 'MonthlyChange', 'Age_Group', 'Category'])
+    df_pivot = df.pivot_table(index='Date', columns=['Category', 'Age_Group'], values='MonthlyChange', fill_value=0)
+    df_pivot.reset_index(inplace=True)
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    
+    age_groups = ['0-17', '18-49', '50-64', '65+']
+    covid_age_groups = ['0 - 17 years', '18 to 49 years', '50 to 64 years', '65+ years']
 
-    # Pivot the DataFrame to create separate columns for theft victims and COVID-19 patients
-    # df_pivot = df.pivot(index='Case_Date', columns=['Category', 'Age_Group'], values='Value')
-    df_pivot = df.pivot(index='TRUNC(Date_, \'MM\')', columns=['Category', 'Age_Group'], values='Number of People')
-    print(df_pivot)
-    # Create a line plot using Plotly Express
-    fig = px.line(df_pivot, x=df_pivot.index, y=['Category', 'Age_Group'], title='Theft Victims and COVID-19 Patients')
-    fig.update_layout(xaxis_title='Case Date', yaxis_title='Value')
+    for age_group, covid_age_group in zip(age_groups, covid_age_groups):
+        fig.add_trace(go.Scatter(x=df_pivot['Date'], y=df_pivot[('Theft Victims', age_group)], name=f'Theft Victims ({age_group})'), secondary_y=False)
+        fig.add_trace(go.Scatter(x=df_pivot['Date'], y=df_pivot[('Assault Victims', age_group)], name=f'Assault Victims ({age_group})'), secondary_y=False)
+        fig.add_trace(go.Scatter(x=df_pivot['Date'], y=df_pivot[('COVID-19 Patients', covid_age_group)], name=f'COVID-19 Patients ({age_group})'), secondary_y=True)
 
-    # Create a dropdown menu for selecting age groups
-    age_groups = df['Age_Group'].unique().tolist()
-    buttons = []
-    for age_group in age_groups:
-        buttons.append(dict(method='update', label=age_group, args=[{'visible': [False]*len(df_pivot.columns)},
-                                                                {'title': f'Theft Victims and COVID-19 Patients ({age_group})'},
-                                                                {'yaxis.title': f'Value ({age_group})'},
-                                                                {'visible': [True if col.endswith(age_group) else False for col in df_pivot.columns]}]))
+    fig.update_layout(
+        title='Monthly Change in Crime Victims and COVID-19 Patients by Age Group',
+        xaxis_title='Date',
+        yaxis_title='Change in Number of Crime Victims',
+        yaxis2_title='Change in Number of COVID-19 Patients',
+        legend=dict(x=1.1, y=0.5),
+    )
 
-        updatemenus = [{'buttons': buttons,
-                'direction': 'down',
-                'showactive': True,
-                'x': 0.1,
-                'y': 1.1}]
-
-        fig.update_layout(updatemenus=updatemenus)
-
-    # Convert the plot to a JSON string for rendering in the web application
+    fig_data = fig.to_html(full_html=False)
     graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
     return render_template("querytwo.html", graphJSON=graphJSON)
@@ -173,30 +191,39 @@ GROUP BY
 def querythree():
     cursor = connection.cursor()
     cursor.execute("""
-    SELECT Area_Name, EXTRACT(YEAR FROM Date_) AS year, EXTRACT(MONTH FROM Date_) AS month,
-    COUNT(*) AS total_crimes
-    FROM gongbingwong.crime
-    WHERE Date_ >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND Date_ <= TO_DATE('27-MAR-23', 'DD-MON-YY')
-    GROUP BY Area_Name, EXTRACT(YEAR FROM Date_), EXTRACT(MONTH FROM Date_)
-    ORDER BY Area_Name, year, month
+        SELECT curr.Area_Name, curr.year, curr.month, curr.total_crimes - prev.total_crimes AS monthly_change
+        FROM (
+            SELECT Area_Name, EXTRACT(YEAR FROM Date_) AS year, EXTRACT(MONTH FROM Date_) AS month,
+            COUNT(*) AS total_crimes
+            FROM gongbingwong.crime
+            WHERE Date_ >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND Date_ <= TO_DATE('27-MAR-23', 'DD-MON-YY')
+            GROUP BY Area_Name, EXTRACT(YEAR FROM Date_), EXTRACT(MONTH FROM Date_)
+        ) curr
+        JOIN (
+            SELECT Area_Name, EXTRACT(YEAR FROM Date_) AS year, EXTRACT(MONTH FROM Date_) AS month,
+            COUNT(*) AS total_crimes
+            FROM gongbingwong.crime
+            WHERE Date_ >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND Date_ <= TO_DATE('27-MAR-23', 'DD-MON-YY')
+            GROUP BY Area_Name, EXTRACT(YEAR FROM Date_), EXTRACT(MONTH FROM Date_)
+        ) prev ON curr.Area_Name = prev.Area_Name AND curr.year = prev.year AND curr.month = prev.month + 1
+        ORDER BY curr.Area_Name, curr.year, curr.month
     """)
     query_results = cursor.fetchall()
-   
-    df = pd.DataFrame(query_results, columns=['Area_Name', 'Year', 'Month', 'Total_Crimes'])
-    df['Year'] = pd.to_datetime(df['Year'], format='mixed')
-    df['Date'] = pd.to_datetime(df[['Year', 'Month']].assign(day=1))
-    df_pivot = df.pivot(index='Date', columns='Area_Name', values='Total_Crimes')
-    df_pivot.ffill(axis=0, inplace=True)
-    df_pivot.reset_index(inplace=True)
-    df_melted = pd.melt(df_pivot, id_vars='Date', value_vars=df['Area_Name'].unique(), value_name='Total_Crimes', var_name='Area_Name')
-    fig = px.line(df_melted, x='Date', y='Total_Crimes', color='Area_Name', title='Total Crimes by Month')
 
-    print(fig.data[0])
+    # create a DataFrame from the query results
+    df = pd.DataFrame(query_results, columns=['Area_Name', 'Year', 'Month', 'Monthly_Change'])
+    df['Date'] = pd.to_datetime(df['Year'].astype(str) + '-' + df['Month'].astype(str), format='%Y-%m')
+    df = df.drop(['Year', 'Month'], axis=1)
+
+    # create the line chart
+    fig = px.line(df, x='Date', y='Monthly_Change', color='Area_Name', title='Monthly Change in Crimes by Area')
+
     fig_data = fig.to_html(full_html=False)
     graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-    # fig.show()
 
     return render_template("querythree.html", graphJSON=graphJSON)
+
+
 
 
 #########################################################################################################
@@ -206,60 +233,80 @@ def queryfour():
     
     cursor = connection.cursor()
     cursor.execute("""
-SELECT
+SELECT 
     r.year,
     r.month,
     r.residential_crime_count,
     r.non_residential_crime_count,
-    COALESCE(d.total_cases, 0) as total_covid_19_cases
-FROM
-(SELECT 
-    EXTRACT(YEAR FROM Date_) AS year, 
-    EXTRACT(MONTH FROM Date_) AS month, 
-    SUM(CASE WHEN c.PREMISE_CODE_DESCRIPTION IN ('DRIVEWAY', 'TOOL SHED*', 'TRANSITIONAL HOUSING/HALFWAY HOUSE', 'TRANSIENT ENCAMPMENT', 'PROJECT/TENEMENT/PUBLIC HOUSING', 
+    COALESCE(d.total_cases, 0) as total_covid_19_cases,
+    (CASE 
+        WHEN r.residential_crime_count - lag(r.residential_crime_count, 1) over (order by r.year, r.month) IS NULL THEN 0 
+        ELSE r.residential_crime_count - lag(r.residential_crime_count, 1) over (order by r.year, r.month)
+    END) as residential_crime_monthly_change,
+    (CASE 
+        WHEN r.non_residential_crime_count - lag(r.non_residential_crime_count, 1) over (order by r.year, r.month) IS NULL THEN 0 
+        ELSE r.non_residential_crime_count - lag(r.non_residential_crime_count, 1) over (order by r.year, r.month)
+    END) as non_residential_crime_monthly_change
+FROM (
+    SELECT 
+        EXTRACT(YEAR FROM Date_) AS year, 
+        EXTRACT(MONTH FROM Date_) AS month, 
+        SUM(CASE WHEN c.PREMISE_CODE_DESCRIPTION IN ('DRIVEWAY', 'TOOL SHED*', 'TRANSITIONAL HOUSING/HALFWAY HOUSE', 'TRANSIENT ENCAMPMENT', 'PROJECT/TENEMENT/PUBLIC HOUSING', 
     'PATIO*', 'BALCONY*', 'OTHER RESIDENCE', 'YARD (RESIDENTIAL/BUSINESS)', 'TV/RADIO/APPLIANCE', 'WEBSITE', 'MISSIONS/SHELTERS', 'NURSING/CONVALESCENT/RETIREMENT HOME', 
     'STORAGE SHED', 'GROUP HOME', 'FOSTER HOME BOYS OR GIRLS*', 'TRASH CAN/TRASH DUMPSTER', 'SINGLE FAMILY DWELLING', 'GARAGE/CARPORT', 'PARKING UNDERGROUND/BUILDING', 
     'CONDOMINIUM/TOWNHOUSE', 'SINGLE RESIDENCE OCCUPANCY (SRO''S) LOCATIONS', 'ABANDONED BUILDING ABANDONED HOUSE', 'HOSPITAL', 'STAIRWELL*', 'PORCH, RESIDENTIAL', 'STREET', 
     'FRAT HOUSE/SORORITY/DORMITORY', 'APARTMENT/CONDO COMMON LAUNDRY ROOM', 'MULTI-UNIT DWELLING (APARTMENT, DUPLEX, ETC)', 'MOBILE HOME/TRAILERS/CONSTRUCTION TRAILERS/RV''S/MOTORHOME') THEN 1 ELSE 0 END) AS residential_crime_count,
-    SUM(CASE WHEN c.PREMISE_CODE_DESCRIPTION NOT IN ('DRIVEWAY', 'TOOL SHED*', 'TRANSITIONAL HOUSING/HALFWAY HOUSE', 'TRANSIENT ENCAMPMENT', 'PROJECT/TENEMENT/PUBLIC HOUSING', 
+        SUM(CASE WHEN c.PREMISE_CODE_DESCRIPTION NOT IN ('DRIVEWAY', 'TOOL SHED*', 'TRANSITIONAL HOUSING/HALFWAY HOUSE', 'TRANSIENT ENCAMPMENT', 'PROJECT/TENEMENT/PUBLIC HOUSING', 
     'PATIO*', 'BALCONY*', 'OTHER RESIDENCE', 'YARD (RESIDENTIAL/BUSINESS)', 'TV/RADIO/APPLIANCE', 'WEBSITE', 'MISSIONS/SHELTERS', 'NURSING/CONVALESCENT/RETIREMENT HOME', 
     'STORAGE SHED', 'GROUP HOME', 'FOSTER HOME BOYS OR GIRLS*', 'TRASH CAN/TRASH DUMPSTER', 'SINGLE FAMILY DWELLING', 'GARAGE/CARPORT', 'PARKING UNDERGROUND/BUILDING', 
     'CONDOMINIUM/TOWNHOUSE', 'SINGLE RESIDENCE OCCUPANCY (SRO''S) LOCATIONS', 'ABANDONED BUILDING ABANDONED HOUSE', 'HOSPITAL', 'STAIRWELL*', 'PORCH, RESIDENTIAL', 'STREET', 
     'FRAT HOUSE/SORORITY/DORMITORY', 'APARTMENT/CONDO COMMON LAUNDRY ROOM', 'MULTI-UNIT DWELLING (APARTMENT, DUPLEX, ETC)', 'MOBILE HOME/TRAILERS/CONSTRUCTION TRAILERS/RV''S/MOTORHOME') THEN 1 ELSE 0 END) AS non_residential_crime_count
-FROM 
-    GONGBINGWONG.Crime c 
-WHERE 
-     c.Date_ >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND c.Date_ <= TO_DATE('27-MAR-23', 'DD-MON-YY')
-GROUP BY 
-    EXTRACT(YEAR FROM c.Date_), 
-    EXTRACT(MONTH FROM c.Date_)) r
-LEFT JOIN
-(SELECT 
-    EXTRACT(YEAR FROM b.case_date) AS year, 
-    EXTRACT(MONTH FROM b.case_date) AS month,
-    COUNT(*) AS total_cases
-FROM 
-    TPHAN1.COVID_19 b
-WHERE 
-    b.case_date >= TO_DATE('01-JAN-20', 'DD-MON-YY') AND b.case_date <= TO_DATE('01-FEB-23', 'DD-MON-YY')
-GROUP BY 
-    EXTRACT(YEAR FROM b.case_date), 
-    EXTRACT(MONTH FROM b.case_date)) d
-on r.year = d.year and r.month = d.month
+    FROM 
+        GONGBINGWONG.Crime c 
+    WHERE 
+        c.Date_ >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND c.Date_ <= TO_DATE('27-MAR-23', 'DD-MON-YY')
+    GROUP BY 
+        EXTRACT(YEAR FROM c.Date_), 
+        EXTRACT(MONTH FROM c.Date_)
+) r
+LEFT JOIN (
+    SELECT 
+        EXTRACT(YEAR FROM b.case_date) AS year, 
+        EXTRACT(MONTH FROM b.case_date) AS month,
+        COUNT(*) AS total_cases
+    FROM 
+        TPHAN1.COVID_19 b
+    WHERE 
+        b.case_date >= TO_DATE('01-JAN-20', 'DD-MON-YY') AND b.case_date <= TO_DATE('01-FEB-23', 'DD-MON-YY')
+    GROUP BY 
+        EXTRACT(YEAR FROM b.case_date), 
+        EXTRACT(MONTH FROM b.case_date)
+) d on r.year = d.year and r.month = d.month
 ORDER BY
     year, month
     """)
 
     query_results = cursor.fetchall()
-    df = pd.DataFrame(query_results, columns=['Year', 'Month', 'Residential_Crime_Count', 'Non_Residential_Crime_Count', 'Total_COVID_19_Cases'])
+    df = pd.DataFrame(query_results, columns=['Year', 'Month', 'Residential_Crime_Count', 'Non_Residential_Crime_Count', 'Total_COVID_19_Cases', 'Residential_Crime_Monthly_Change', 'Non_Residential_Crime_Monthly_Change'])
     df['Date'] = pd.to_datetime(df['Year'].astype(str) + '-' + df['Month'].astype(str), format='%Y-%m')
     df = df.drop(['Year', 'Month'], axis=1)
     df_melted = pd.melt(df, id_vars=['Date', 'Total_COVID_19_Cases'], var_name='Crime_Type', value_name='Crime_Count')
-    fig = px.line(df_melted, x='Date', y='Crime_Count', color='Crime_Type', title='Total Crimes and COVID-19 Cases by Month')
-    fig.add_trace(go.Scatter(x=df['Date'], y=df['Total_COVID_19_Cases'], name='Total COVID-19 Cases', yaxis='y2'))
-    fig.update_layout(yaxis=dict(title='Crime Count', side='left'), yaxis2=dict(title='Total COVID-19 Cases', overlaying='y', side='right'),
-                    legend=dict(x=1.125, y=1))
-    print(fig.data[0])
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    fig.add_trace(go.Scatter(x=df['Date'], y=df['Residential_Crime_Monthly_Change'], name='Monthly Change in Residential Crimes'), secondary_y=False)
+    fig.add_trace(go.Scatter(x=df['Date'], y=df['Non_Residential_Crime_Monthly_Change'], name='Monthly Change in Non-Residential Crimes'), secondary_y=False)
+
+    # Calculate the monthly change for COVID-19 cases
+    df['COVID_19_Cases_Monthly_Change'] = df['Total_COVID_19_Cases'].diff()
+    fig.add_trace(go.Scatter(x=df['Date'], y=df['COVID_19_Cases_Monthly_Change'], name='Monthly Change in COVID-19 Cases'), secondary_y=True)
+
+    fig.update_layout(
+        title='Monthly Changes in Residential Crimes, Nonresidential Crimes, and COVID-19 Cases',
+        xaxis=dict(title='Month'),
+        yaxis=dict(title='Monthly Change in Crime Count', side='left'),
+        yaxis2=dict(title='Monthly Change in COVID-19 Cases', overlaying='y', side='right'),
+        legend=dict(x=1.125, y=1)
+    )
+    fig.update_traces(hovertemplate='<b>%{y:.0f}</b><br>%{x|%b-%Y}<extra></extra>', mode='lines')
     fig_data = fig.to_html(full_html=False)
     graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     return render_template("queryfour.html", graphJSON=graphJSON)
