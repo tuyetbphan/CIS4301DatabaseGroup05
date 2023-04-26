@@ -320,27 +320,26 @@ ORDER BY
 def queryfive():
     cursor = connection.cursor()
     cursor.execute("""
-    SELECT 
+SELECT 
         TO_CHAR(Date_, 'MON-YY') as month,
         Crime_Code_Description,
-        SUM(CASE WHEN Descent = 'B' THEN 1 ELSE 0 END) / COUNT(*) AS Black,
-        SUM(CASE WHEN Descent = 'W' THEN 1 ELSE 0 END) / COUNT(*) AS White,
-        SUM(CASE WHEN Descent = 'I' THEN 1 ELSE 0 END) / COUNT(*) AS American_Indian,
-        SUM(CASE WHEN Descent = 'C' THEN 1 ELSE 0 END) / COUNT(*) AS Chinese,
-        SUM(CASE WHEN Descent = 'D' THEN 1 ELSE 0 END) / COUNT(*) AS Cambodian,
-        SUM(CASE WHEN Descent = 'F' THEN 1 ELSE 0 END) / COUNT(*) AS Filipino,
-        SUM(CASE WHEN Descent = 'J' THEN 1 ELSE 0 END) / COUNT(*) AS Japanese,
-        SUM(CASE WHEN Descent = 'K' THEN 1 ELSE 0 END) / COUNT(*) AS Korean,
-        SUM(CASE WHEN Descent = 'L' THEN 1 ELSE 0 END) / COUNT(*) AS Laotian,
-        SUM(CASE WHEN Descent = 'V' THEN 1 ELSE 0 END) / COUNT(*) AS Vietnamese
+        (SUM(CASE WHEN Descent = 'B' THEN 1 ELSE 0 END) / COUNT(*)) * 100 AS Black,
+        (SUM(CASE WHEN Descent = 'W' THEN 1 ELSE 0 END) / COUNT(*)) * 100 AS White,
+        (SUM(CASE WHEN Descent = 'I' THEN 1 ELSE 0 END) / COUNT(*)) * 100 AS American_Indian,
+        (SUM(CASE WHEN Descent = 'C' THEN 1 ELSE 0 END) / COUNT(*)) * 100 AS Chinese,
+        (SUM(CASE WHEN Descent = 'D' THEN 1 ELSE 0 END) / COUNT(*)) * 100 AS Cambodian,
+        (SUM(CASE WHEN Descent = 'F' THEN 1 ELSE 0 END) / COUNT(*)) * 100 AS Filipino,
+        (SUM(CASE WHEN Descent = 'J' THEN 1 ELSE 0 END) / COUNT(*)) * 100 AS Japanese,
+        (SUM(CASE WHEN Descent = 'K' THEN 1 ELSE 0 END) / COUNT(*)) * 100 AS Korean,
+        (SUM(CASE WHEN Descent = 'L' THEN 1 ELSE 0 END) / COUNT(*)) * 100 AS Laotian,
+        (SUM(CASE WHEN Descent = 'V' THEN 1 ELSE 0 END) / COUNT(*)) * 100 AS Vietnamese
     FROM 
         GONGBINGWONG.Crime
         JOIN GONGBINGWONG.Victim ON 
         GONGBINGWONG.Crime.Crime_ID = GONGBINGWONG.Victim.Victim_Of
     WHERE 
         Date_ >= TO_DATE('01-JAN-10', 'DD-MON-YY') AND 
-        Date_ <= TO_DATE('01-DEC-22', 'DD-MON-YY') AND 
-        GONGBINGWONG.Crime.Crime_Code_Description LIKE '%ASSAULT%'
+        Date_ <= TO_DATE('01-DEC-22', 'DD-MON-YY')
     GROUP BY 
         Crime_Code_Description, TO_CHAR(Date_, 'MON-YY') 
     ORDER BY 
@@ -372,7 +371,7 @@ def queryfive():
     fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['Korean'], name='Korean'))
     fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['Laotian'], name='Laotian'))
     fig.add_trace(go.Scatter(x=df_code['Month'], y=df_code['Vietnamese'], name='Vietnamese'))
-    fig.update_yaxes(title_text='Percentage of Victims')
+    fig.update_yaxes(title_text='Ratio of Victims')
     fig.update_xaxes(title_text='Month')
    
 
